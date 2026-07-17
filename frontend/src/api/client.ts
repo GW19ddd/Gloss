@@ -173,6 +173,15 @@ export const api = {
   getTranslations: (paper_id: string, language?: string) =>
     fetch(`/api/papers/${paper_id}/translations${language ? `?lang=${encodeURIComponent(language)}` : ""}`)
       .then((r) => j<{ sentences: TransSentence[]; pages: number[] }>(r)),
+  translateTex: (paper_id: string, language?: string) =>
+    fetch(`/api/papers/${paper_id}/translate_tex`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ language }),
+    }).then((r) => j<{ units: { original: string; translation: string }[] }>(r)),
+  getTexTranslations: (paper_id: string, language?: string) =>
+    fetch(`/api/papers/${paper_id}/tex_translations${language ? `?lang=${encodeURIComponent(language)}` : ""}`)
+      .then((r) => j<{ units: { original: string; translation: string }[] }>(r)),
 
   autohighlight: (id: string) =>
     fetch(`/api/papers/${id}/autohighlight`, {

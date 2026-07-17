@@ -3,6 +3,8 @@ import { api, TransSentence } from "../api/client";
 import { useStore } from "../store";
 import { Markdown } from "./Markdown";
 
+type Unit = { original: string; translation: string };
+
 export function TranslatePanel() {
   const current = useStore((s) => s.current);
   const selection = useStore((s) => s.selection);
@@ -11,6 +13,7 @@ export function TranslatePanel() {
   const setGoto = useStore((s) => s.setGoto);
   const flashLocate = useStore((s) => s.flashLocate);
   const uiLang = useStore((s) => s.uiLang);
+  const isArxiv = !!current?.arxiv_id;
   const T = {
     en: {
       placeholder: "Select text to translate, or translate whole pages sentence-by-sentence.",
@@ -22,8 +25,11 @@ export function TranslatePanel() {
       translating: (l: string) => `Translating into ${l}…`,
       page: (n: number) => `Page ${n}`,
       locate: "Click to locate in the PDF",
-      empty:
-        "No page translations yet — choose a page range above. Already-translated pages are restored automatically.",
+      empty: "No page translations yet — choose a page range above. Already-translated pages are restored automatically.",
+      modePdf: "PDF pages",
+      modeTex: "LaTeX source",
+      translateSource: "Translate full LaTeX source",
+      texEmpty: "Translate the arXiv LaTeX source to get the complete text (nothing missed by PDF extraction).",
     },
     zh: {
       placeholder: "选中文本进行翻译，或按句翻译整页。",
@@ -36,38 +42,43 @@ export function TranslatePanel() {
       page: (n: number) => `第 ${n} 页`,
       locate: "点击在原文 PDF 中定位",
       empty: "尚无页面翻译 — 请在上方选择页码范围。已翻译的页面会自动恢复。",
+      modePdf: "PDF 分页",
+      modeTex: "LaTeX 全文",
+      translateSource: "翻译 LaTeX 全文源",
+      texEmpty: "翻译 arXiv 的 LaTeX 源，可得到完整文本（不会被 PDF 提取漏掉）。",
     },
   }[uiLang];
 
+  const [mode, setMode] = useState<"pdf" | "tex">("pdf");
   const [text, setText] = useState("");
   const [out, setOut] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [sentences, setSentences] = useState<TransSentence[]>([]);
+  const [texUnits, setTexUnits] = useState<Unit[]>([]);
   const [showOriginal, setShowOriginal] = useState(false);
-  // kept as strings so the inputs can be cleared / select-all-deleted freely
   const [from, setFrom] = useState("1");
   const [to, setTo] = useState("1");
 
-  // Restore already-translated pages on entry / paper switch / language change.
+  // restore PDF translations
   useEffect(() => {
-    if (!current?.id) {
-      setSentences([]);
-      return;
-    }
+    if (!current?.id) return setSentences([]);
     let cancelled = false;
-    api
-      .getTranslations(current.id, lang)
-      .then((r) => {
-        if (!cancelled) setSentences(r.sentences);
-      })
-      .catch(() => {
-        if (!cancelled) setSentences([]);
-      });
+    api.getTranslations(current.id, lang).then((r) => !cancelled && setSentences(r.sentences)).catch(() => {});
     return () => {
       cancelled = true;
     };
   }, [current?.id, lang]);
+
+  // restore LaTeX-source translations
+  useEffect(() => {
+    if (!current?.id || !isArxiv) return setTexUnits([]);
+    let cancelled = false;
+    api.getTexTranslations(current.id, lang).then((r) => !cancelled && setTexUnits(r.units)).catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [current?.id, lang, isArxiv]);
 
   async function translateText(t: string) {
     if (!t.trim()) return;
@@ -103,15 +114,29 @@ export function TranslatePanel() {
     }
   }
 
-  // Click a translated sentence → briefly highlight the original in the PDF.
-  async function locate(s: TransSentence) {
+  async function translateSource() {
+    if (!current) return;
+    setLoading(true);
+    setError("");
+    try {
+      const r = await api.translateTex(current.id, lang);
+      setTexUnits(r.units);
+    } catch (e: any) {
+      setError("Error: " + (e.message || e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // click a translated sentence → briefly highlight the original in the PDF
+  async function locate(original: string, page?: number) {
     if (!current) return;
     try {
-      const loc = await api.locate(current.id, s.original);
+      const loc = await api.locate(current.id, original);
       if (loc.page != null && loc.rects.length) flashLocate(loc.page, loc.rects);
-      else setGoto(s.page);
+      else if (page != null) setGoto(page);
     } catch {
-      setGoto(s.page);
+      if (page != null) setGoto(page);
     }
   }
 
@@ -124,80 +149,95 @@ export function TranslatePanel() {
 
   return (
     <div className="panel-body">
-      <textarea
-        className="sel-input"
-        placeholder={T.placeholder}
-        value={text || selection?.text || ""}
-        onChange={(e) => setText(e.target.value)}
-      />
-      <div className="panel-actions">
-        <button onClick={() => translateText(text || selection?.text || "")} disabled={loading}>
-          {T.translateText}
-        </button>
-      </div>
-      <div className="panel-actions">
-        <button onClick={translateRange} disabled={loading}>
-          {T.translatePages}
-        </button>
-        <span className="page-picker">
-          {T.fromPage}{" "}
-          <input
-            type="number"
-            min={1}
-            max={current?.n_pages}
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-          />{" "}
-          {T.toPage}{" "}
-          <input
-            type="number"
-            min={1}
-            max={current?.n_pages}
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
+      {isArxiv && (
+        <div className="seg" style={{ marginBottom: 10 }}>
+          <button className={"seg-btn" + (mode === "pdf" ? " active" : "")} onClick={() => setMode("pdf")}>
+            {T.modePdf}
+          </button>
+          <button className={"seg-btn" + (mode === "tex" ? " active" : "")} onClick={() => setMode("tex")}>
+            {T.modeTex}
+          </button>
+        </div>
+      )}
+
+      {mode === "pdf" && (
+        <>
+          <textarea
+            className="sel-input"
+            placeholder={T.placeholder}
+            value={text || selection?.text || ""}
+            onChange={(e) => setText(e.target.value)}
           />
-        </span>
-        <label className="page-picker" style={{ cursor: "pointer" }}>
-          <input
-            type="checkbox"
-            checked={showOriginal}
-            onChange={(e) => setShowOriginal(e.target.checked)}
-          />
-          {T.showOriginal}
-        </label>
-      </div>
+          <div className="panel-actions">
+            <button onClick={() => translateText(text || selection?.text || "")} disabled={loading}>
+              {T.translateText}
+            </button>
+          </div>
+          <div className="panel-actions">
+            <button onClick={translateRange} disabled={loading}>
+              {T.translatePages}
+            </button>
+            <span className="page-picker">
+              {T.fromPage}{" "}
+              <input type="number" min={1} max={current?.n_pages} value={from} onChange={(e) => setFrom(e.target.value)} />{" "}
+              {T.toPage}{" "}
+              <input type="number" min={1} max={current?.n_pages} value={to} onChange={(e) => setTo(e.target.value)} />
+            </span>
+          </div>
+        </>
+      )}
+
+      {mode === "tex" && (
+        <div className="panel-actions">
+          <button onClick={translateSource} disabled={loading}>
+            {T.translateSource}
+          </button>
+        </div>
+      )}
+
+      <label className="page-picker" style={{ cursor: "pointer", marginBottom: 6 }}>
+        <input type="checkbox" checked={showOriginal} onChange={(e) => setShowOriginal(e.target.checked)} />
+        {T.showOriginal}
+      </label>
 
       {loading && <div className="muted">{T.translating(lang)}</div>}
       {error && <div className="error">{error}</div>}
-      {out && <Markdown text={out} />}
+      {out && mode === "pdf" && <Markdown text={out} />}
 
-      {sentences.length === 0
-        ? !loading && <div className="muted">{T.empty}</div>
-        : (
-          <div style={{ marginTop: 8 }}>
-            {sentences.map((s, i) => (
-              <Fragment key={i}>
-                {(i === 0 || s.page !== sentences[i - 1].page) && (
-                  <div
-                    style={{
-                      color: "var(--fg-dim)",
-                      fontSize: 11,
-                      margin: "10px 0 4px",
-                      borderTop: "1px solid var(--border)",
-                      paddingTop: 6,
-                    }}
-                  >
-                    {T.page(s.page + 1)}
+      {mode === "pdf" &&
+        (sentences.length === 0
+          ? !loading && <div className="muted">{T.empty}</div>
+          : (
+            <div style={{ marginTop: 8 }}>
+              {sentences.map((s, i) => (
+                <Fragment key={i}>
+                  {(i === 0 || s.page !== sentences[i - 1].page) && (
+                    <div style={{ color: "var(--fg-dim)", fontSize: 11, margin: "10px 0 4px", borderTop: "1px solid var(--border)", paddingTop: 6 }}>
+                      {T.page(s.page + 1)}
+                    </div>
+                  )}
+                  <div className="trans-cell clickable" title={T.locate} onClick={() => locate(s.original, s.page)}>
+                    {showOriginal && <div className="trans-orig">{s.original}</div>}
+                    <div className="trans-zh">{s.translation}</div>
                   </div>
-                )}
-                <div className="trans-cell clickable" title={T.locate} onClick={() => locate(s)}>
-                  {showOriginal && <div className="trans-orig">{s.original}</div>}
-                  <div className="trans-zh">{s.translation}</div>
+                </Fragment>
+              ))}
+            </div>
+          ))}
+
+      {mode === "tex" &&
+        (texUnits.length === 0
+          ? !loading && <div className="muted">{T.texEmpty}</div>
+          : (
+            <div style={{ marginTop: 8 }}>
+              {texUnits.map((u, i) => (
+                <div key={i} className="trans-cell clickable" title={T.locate} onClick={() => locate(u.original)}>
+                  {showOriginal && <div className="trans-orig">{u.original}</div>}
+                  <div className="trans-zh">{u.translation}</div>
                 </div>
-              </Fragment>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          ))}
     </div>
   );
 }

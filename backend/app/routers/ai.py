@@ -149,6 +149,23 @@ async def get_translations(paper_id: str, lang: str | None = None):
     }
 
 
+@router.post("/papers/{paper_id}/translate_tex")
+async def translate_tex(paper_id: str, body: Override):
+    """Translate an arXiv paper's LaTeX source (nothing missed by PDF extraction)."""
+    try:
+        units = await translate_feat.translate_tex(
+            paper_id, language=body.language, provider=body.provider, model=body.model
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"units": units}
+
+
+@router.get("/papers/{paper_id}/tex_translations")
+async def get_tex_translations(paper_id: str, lang: str | None = None):
+    return {"units": translate_feat.get_tex_translations(paper_id, language=lang)}
+
+
 @router.post("/papers/{paper_id}/autohighlight")
 async def autohighlight(paper_id: str, body: Override):
     if not store.get_paper(paper_id):
