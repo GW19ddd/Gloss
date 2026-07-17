@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, Reference } from "../api/client";
+import { useOp } from "../api/ops";
 import { useStore } from "../store";
 
 function refLink(r: Reference): string {
@@ -13,8 +14,7 @@ function refLink(r: Reference): string {
 export function ReferencesPanel() {
   const current = useStore((s) => s.current);
   const uiLang = useStore((s) => s.uiLang);
-  const [refs, setRefs] = useState<Reference[]>([]);
-  const [busy, setBusy] = useState(false);
+  const [initialRefs, setInitialRefs] = useState<Reference[]>([]);
 
   const T = {
     en: {
@@ -31,27 +31,19 @@ export function ReferencesPanel() {
     },
   }[uiLang];
 
-  async function load() {
-    if (!current) return;
-    const { references } = await api.getReferences(current.id);
-    setRefs(references);
-  }
+  // fast: the parsed references
   useEffect(() => {
-    setRefs([]);
-    load();
+    setInitialRefs([]);
+    if (current) api.getReferences(current.id).then((r) => setInitialRefs(r.references)).catch(() => {});
   }, [current?.id]);
 
-  async function resolve() {
-    if (!current) return;
-    setBusy(true);
-    try {
-      const { references } = await api.resolveReferences(current.id);
-      setRefs(references);
-    } finally {
-      setBusy(false);
-    }
-  }
+  // slow: enrich via Crossref/arXiv — runs in the detached op cache, so leaving
+  // this tab mid-resolve keeps it going; coming back shows the live progress.
+  const key = current ? `resolve:${current.id}` : null;
+  const { data: resolvedRefs, loading: busy, run } = useOp<Reference[]>(key);
+  const resolve = () => run(() => api.resolveReferences(current!.id).then((r) => r.references));
 
+  const refs = resolvedRefs ?? initialRefs;
   const resolved = refs.filter((r) => r.resolved).length;
 
   return (

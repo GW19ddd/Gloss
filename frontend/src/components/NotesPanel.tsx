@@ -1,10 +1,7 @@
-import { useEffect, useState } from "react";
 import { api } from "../api/client";
+import { useOp } from "../api/ops";
 import { useStore } from "../store";
 import { Markdown } from "./Markdown";
-
-// module-scoped cache so re-opening the tab is instant (no re-fetch/regenerate)
-const CACHE = new Map<string, string>();
 
 export function NotesPanel() {
   const current = useStore((s) => s.current);
@@ -12,38 +9,19 @@ export function NotesPanel() {
   const T = uiLang === "zh"
     ? { regenerate: "↻ 重新生成", generating: "生成笔记中…", copy: "⧉ 复制", download: "⬇ 下载 .md" }
     : { regenerate: "↻ Regenerate", generating: "Generating notes…", copy: "⧉ Copy", download: "⬇ Download .md" };
-  const [md, setMd] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState("");
 
-  async function load(refresh = false) {
-    if (!current) return;
-    if (!refresh && CACHE.has(current.id)) {
-      setMd(CACHE.get(current.id)!);
-      return;
-    }
-    setLoading(true);
-    setErr("");
-    try {
-      const r = await api.notes(current.id, refresh);
-      CACHE.set(current.id, r.markdown);
-      setMd(r.markdown);
-    } catch (e: any) {
-      setErr(String(e.message || e));
-    } finally {
-      setLoading(false);
-    }
-  }
-  useEffect(() => {
-    setMd(current && CACHE.has(current.id) ? CACHE.get(current.id)! : "");
-    load(false);
-  }, [current?.id]);
+  // detached op → keeps generating even if you switch tabs mid-run
+  const key = current ? `notes:${current.id}` : null;
+  const { data: md = "", loading, error, run } = useOp<string>(key, () =>
+    api.notes(current!.id).then((r) => r.markdown),
+  );
+  const regenerate = () => run(() => api.notes(current!.id, true).then((r) => r.markdown), true);
 
   async function copy() {
     try {
       await navigator.clipboard.writeText(md);
-    } catch (e: any) {
-      setErr(String(e.message || e));
+    } catch {
+      /* ignore */
     }
   }
 
@@ -63,7 +41,7 @@ export function NotesPanel() {
   return (
     <div className="panel-body">
       <div className="panel-actions">
-        <button onClick={() => load(true)} disabled={loading}>
+        <button onClick={regenerate} disabled={loading}>
           {loading ? T.generating : T.regenerate}
         </button>
         <button onClick={copy} disabled={loading || !md}>
@@ -73,7 +51,7 @@ export function NotesPanel() {
           {T.download}
         </button>
       </div>
-      {err && <div className="error">{err}</div>}
+      {error && <div className="error">{error}</div>}
       {loading && !md && <div className="muted">{T.generating}</div>}
       {md && <Markdown text={md} />}
     </div>

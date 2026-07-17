@@ -1,46 +1,24 @@
-import { useEffect, useState } from "react";
 import { api, Summary } from "../api/client";
+import { useOp } from "../api/ops";
 import { useStore } from "../store";
 import { Markdown } from "./Markdown";
-
-// module-scoped cache so re-opening the tab is instant (no re-fetch/regenerate)
-const CACHE = new Map<string, Summary>();
 
 export function SummaryPanel() {
   const current = useStore((s) => s.current);
   const outputLanguage = useStore((s) => s.outputLanguage);
   const uiLang = useStore((s) => s.uiLang);
-  const T = uiLang === "zh"
-    ? { regenerate: "↻ 重新生成", summarizing: "生成摘要中…", reading: "正在阅读论文…" }
-    : { regenerate: "↻ Regenerate", summarizing: "Summarizing…", reading: "Reading the paper…" };
-  const [sum, setSum] = useState<Summary | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState("");
+  const T =
+    uiLang === "zh"
+      ? { regenerate: "↻ 重新生成", summarizing: "生成摘要中…", reading: "正在阅读论文…" }
+      : { regenerate: "↻ Regenerate", summarizing: "Summarizing…", reading: "Reading the paper…" };
 
-  async function load(refresh = false) {
-    if (!current) return;
-    const key = `${current.id}:${outputLanguage}`;
-    if (!refresh && CACHE.has(key)) {
-      setSum(CACHE.get(key)!);
-      return;
-    }
-    setLoading(true);
-    setErr("");
-    try {
-      const s = await api.summarize(current.id, { refresh, language: outputLanguage });
-      CACHE.set(key, s);
-      setSum(s);
-    } catch (e: any) {
-      setErr(String(e.message || e));
-    } finally {
-      setLoading(false);
-    }
-  }
-  useEffect(() => {
-    const key = current ? `${current.id}:${outputLanguage}` : "";
-    setSum(key && CACHE.has(key) ? CACHE.get(key)! : null);
-    load(false);
-  }, [current?.id, outputLanguage]);
+  // runs in the detached op cache → keeps going if you switch tabs mid-summary
+  const key = current ? `summary:${current.id}:${outputLanguage}` : null;
+  const { data: sum, loading, error, run } = useOp<Summary>(key, () =>
+    api.summarize(current!.id, { language: outputLanguage }),
+  );
+  const regenerate = () =>
+    run(() => api.summarize(current!.id, { refresh: true, language: outputLanguage }), true);
 
   const zh = uiLang === "zh";
   const L = zh
@@ -50,11 +28,11 @@ export function SummaryPanel() {
   return (
     <div className="panel-body">
       <div className="panel-actions">
-        <button onClick={() => load(true)} disabled={loading}>
+        <button onClick={regenerate} disabled={loading}>
           {loading ? T.summarizing : T.regenerate}
         </button>
       </div>
-      {err && <div className="error">{err}</div>}
+      {error && <div className="error">{error}</div>}
       {loading && !sum && <div className="muted">{T.reading}</div>}
       {sum && (
         <div className="summary">

@@ -13,10 +13,8 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { api, MindNode } from "../api/client";
+import { useOp } from "../api/ops";
 import { useStore } from "../store";
-
-// module-scoped cache so re-opening the tab is instant (no re-fetch/regenerate)
-const MM_CACHE = new Map<string, MindNode>();
 
 // Hard cap on how many tree nodes we lay out (keeps huge maps readable + fast).
 const MAX_NODES = 80;
@@ -327,37 +325,20 @@ export function MindMapPanel() {
         parent: "Parent",
         children: (n: number) => `Children (${n})`,
       };
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState("");
-  const [tree, setTree] = useState<MindNode | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [focusedId, setFocusedId] = useState<string | null>(null);
 
-  async function load(refresh = false) {
-    if (!current) return;
-    if (!refresh && MM_CACHE.has(current.id)) {
-      setTree(MM_CACHE.get(current.id)!);
-      return;
-    }
-    setLoading(true);
-    setErr("");
-    try {
-      const { tree } = await api.mindmap(current.id, refresh);
-      MM_CACHE.set(current.id, tree);
-      setTree(tree);
-    } catch (e: any) {
-      setErr(String(e?.message || e));
-    } finally {
-      setLoading(false);
-    }
-  }
+  // detached op → generation keeps running if you switch tabs mid-build
+  const mmKey = current ? `mindmap:${current.id}` : null;
+  const { data: tree = null, loading, error: err, run } = useOp<MindNode>(mmKey, () =>
+    api.mindmap(current!.id).then((r) => r.tree),
+  );
+  const regenerate = () => run(() => api.mindmap(current!.id, true).then((r) => r.tree), true);
 
+  // reset the interactive view state when the paper changes
   useEffect(() => {
-    setTree(current && MM_CACHE.has(current.id) ? MM_CACHE.get(current.id)! : null);
     setCollapsed(new Set());
     setFocusedId(null);
-    load(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.id]);
 
   // Stable id assignment (only depends on the tree).
@@ -664,7 +645,7 @@ export function MindMapPanel() {
         className="panel-actions"
         style={{ padding: "8px 12px", display: "flex", alignItems: "center", gap: 10 }}
       >
-        <button onClick={() => load(true)} disabled={loading || !current}>
+        <button onClick={regenerate} disabled={loading || !current}>
           {loading ? T.mapping : T.regenerate}
         </button>
         {loading && tree && <span className="muted">{T.updating}</span>}
