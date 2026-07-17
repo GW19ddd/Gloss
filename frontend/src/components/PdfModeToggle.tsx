@@ -1,16 +1,18 @@
 import { useState } from "react";
+import { useStore } from "../store";
 
 // PDF reading modes — applied via a data-pdf attribute on <html> (like themes).
-//   light  正常   — no filter
-//   sepia  护眼   — warm paper tint, easier on the eyes
-//   dark   夜间   — inverted (dark bg / light text), figures kept via hue-rotate
-const MODES: { id: string; label: string; hint: string }[] = [
-  { id: "light", label: "Normal", hint: "正常 · white page" },
-  { id: "sepia", label: "Sepia", hint: "护眼 · warm, easy on the eyes" },
-  { id: "dark", label: "Night", hint: "夜间 · dark page, light text" },
+//   light  Normal / 正常  — no filter
+//   sepia  Sepia  / 护眼  — warm paper tint, easier on the eyes
+//   dark   Night  / 夜间  — inverted (dark bg / light text), figures kept via hue-rotate
+const MODES: { id: string; en: string; zh: string; hint: string }[] = [
+  { id: "light", en: "Normal", zh: "正常", hint: "white page" },
+  { id: "sepia", en: "Sepia", zh: "护眼", hint: "warm, easy on the eyes" },
+  { id: "dark", en: "Night", zh: "夜间", hint: "dark page, light text" },
 ];
 
 export function PdfModeToggle() {
+  const uiLang = useStore((s) => s.uiLang);
   const [mode, setMode] = useState(() => localStorage.getItem("gloss.pdfMode") || "light");
   function apply(m: string) {
     setMode(m);
@@ -26,7 +28,7 @@ export function PdfModeToggle() {
           title={m.hint}
           onClick={() => apply(m.id)}
         >
-          {m.label}
+          {uiLang === "zh" ? m.zh : m.en}
         </button>
       ))}
     </div>
