@@ -220,6 +220,20 @@ export const api = {
       j<{ results: ScholarResult[] }>(r),
     ),
 
+  // per-paper chat history
+  listChats: (paperId: string) =>
+    fetch(`/api/papers/${paperId}/chats`).then((r) => j<{ chats: any[] }>(r)),
+  createChat: (paperId: string, title = "Chat") =>
+    fetch(`/api/papers/${paperId}/chats`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title }),
+    }).then((r) => j<{ id: string }>(r)),
+  getChatMessages: (chatId: string) =>
+    fetch(`/api/chats/${chatId}/messages`).then((r) =>
+      j<{ messages: { role: string; content: string }[] }>(r),
+    ),
+
   listSkills: () => fetch("/api/skills").then((r) => j<{ skills: Skill[]; count: number }>(r)),
 
   getSettings: () =>

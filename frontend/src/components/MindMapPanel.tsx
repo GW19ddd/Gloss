@@ -227,34 +227,44 @@ function layout(flat: Flat, collapsed: Set<string>): { nodes: Node[]; edges: Edg
   const { byId, rootId } = flat;
   if (!rootId) return { nodes: [], edges: [] };
 
-  const yById = new Map<string, number>();
-  let leafCounter = 0;
+  // Estimate each card's rendered height so taller (summary-bearing) cards don't
+  // overlap: leaves are packed by cumulative height; internal nodes are centered
+  // on their children. `centerById` holds vertical CENTERS (converted to top later).
+  const NODE_GAP = 26;
+  function estH(f: any): number {
+    const titleLines = Math.min(3, Math.max(1, Math.ceil((f.title?.length || 0) / 24)));
+    return Math.max(54, 18 + (f.kind ? 14 : 0) + titleLines * 17 + (f.summary ? 34 : 0));
+  }
+
+  const centerById = new Map<string, number>();
+  let cursorY = 0;
 
   function place(id: string): number {
     const node = byId.get(id)!;
     const kids = collapsed.has(id) ? [] : node.childIds;
-    let y: number;
+    let center: number;
     if (kids.length === 0) {
-      y = leafCounter * Y_STEP;
-      leafCounter++;
+      const h = estH(node);
+      center = cursorY + h / 2;
+      cursorY += h + NODE_GAP;
     } else {
       let sum = 0;
       for (const cid of kids) sum += place(cid);
-      y = sum / kids.length;
+      center = sum / kids.length;
     }
-    yById.set(id, y);
-    return y;
+    centerById.set(id, center);
+    return center;
   }
   place(rootId);
 
   const nodes: Node[] = [];
   const edges: Edge[] = [];
-  for (const [id, y] of yById) {
+  for (const [id, center] of centerById) {
     const f = byId.get(id)!;
     nodes.push({
       id,
       type: "mind",
-      position: { x: f.depth * X_STEP, y },
+      position: { x: f.depth * X_STEP, y: center - estH(f) / 2 },
       data: {
         title: f.title,
         kind: f.kind,
@@ -268,7 +278,7 @@ function layout(flat: Flat, collapsed: Set<string>): { nodes: Node[]; edges: Edg
       } as MindNodeData,
     });
     // Edge from parent -> this node (only when parent is also visible).
-    if (f.parentId && yById.has(f.parentId)) {
+    if (f.parentId && centerById.has(f.parentId)) {
       edges.push({
         id: `e-${f.parentId}-${id}`,
         source: f.parentId,

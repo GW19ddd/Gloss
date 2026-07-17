@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { streamPost } from "../api/client";
+import { api, streamPost } from "../api/client";
 import { useStore } from "../store";
 import { Markdown } from "./Markdown";
 
@@ -18,9 +18,34 @@ export function ChatPanel() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [streamed, setStreamed] = useState("");
+  const [chatId, setChatId] = useState<string | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => setMsgs([]), [current?.id]);
+  // Load this paper's saved chat history (or start a fresh chat).
+  useEffect(() => {
+    let cancelled = false;
+    setMsgs([]);
+    setChatId(null);
+    if (!current?.id) return;
+    (async () => {
+      try {
+        const { chats } = await api.listChats(current.id);
+        let cid = chats[0]?.id;
+        if (!cid) cid = (await api.createChat(current.id)).id;
+        if (cancelled) return;
+        setChatId(cid);
+        const { messages } = await api.getChatMessages(cid);
+        if (!cancelled) {
+          setMsgs(messages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })));
+        }
+      } catch {
+        /* history unavailable — continue with an empty transient chat */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [current?.id]);
   useEffect(() => {
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight });
   }, [msgs, streamed]);
@@ -32,11 +57,22 @@ export function ChatPanel() {
     setInput("");
     setBusy(true);
     setStreamed("");
+    // make sure we have a chat to persist into (handles a very fast first send)
+    let cid = chatId;
+    if (!cid && current?.id) {
+      try {
+        cid = (await api.createChat(current.id)).id;
+        setChatId(cid);
+      } catch {
+        /* persistence unavailable */
+      }
+    }
     let acc = "";
     await streamPost(
       "/api/chat",
       {
         paper_id: current?.id,
+        chat_id: cid,
         messages: next,
         selection: selText || null,
         language: outputLanguage,
