@@ -38,6 +38,11 @@ export function SummaryPanel() {
     load(false);
   }, [current?.id, outputLanguage]);
 
+  const zh = outputLanguage.startsWith("中文");
+  const L = zh
+    ? { tldr: "速览", problem: "问题", method: "方法", results: "结果", contributions: "创新点", key: "5 分钟速读", limits: "局限" }
+    : { tldr: "TL;DR", problem: "Problem", method: "Method", results: "Results", contributions: "Contributions", key: "5-minute key points", limits: "Limitations" };
+
   return (
     <div className="panel-body">
       <div className="panel-actions">
@@ -49,29 +54,29 @@ export function SummaryPanel() {
       {loading && !sum && <div className="muted">Reading the paper…</div>}
       {sum && (
         <div className="summary">
-          <h4>TL;DR</h4>
+          <h4>{L.tldr}</h4>
           <Markdown text={sum.tldr} />
           <div className="grid2">
-            <div><h5>Problem</h5><Markdown text={sum.problem} /></div>
-            <div><h5>Method</h5><Markdown text={sum.method} /></div>
+            <div><h5>{L.problem}</h5><Markdown text={sum.problem} /></div>
+            <div><h5>{L.method}</h5><Markdown text={sum.method} /></div>
           </div>
-          <h5>Results</h5>
+          <h5>{L.results}</h5>
           <Markdown text={sum.results} />
           {sum.contributions?.length > 0 && (
             <>
-              <h5>Contributions</h5>
+              <h5>{L.contributions}</h5>
               <ul>{sum.contributions.map((c, i) => <li key={i}><Markdown text={c} /></li>)}</ul>
             </>
           )}
           {sum.key_points?.length > 0 && (
             <>
-              <h5>5-minute key points</h5>
+              <h5>{L.key}</h5>
               <ul>{sum.key_points.map((c, i) => <li key={i}><Markdown text={c} /></li>)}</ul>
             </>
           )}
           {sum.limitations?.length > 0 && (
             <>
-              <h5>Limitations</h5>
+              <h5>{L.limits}</h5>
               <ul>{sum.limitations.map((c, i) => <li key={i}><Markdown text={c} /></li>)}</ul>
             </>
           )}

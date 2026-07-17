@@ -57,7 +57,11 @@ export function SidePanel() {
         {activeTab === "summary" && <SummaryPanel />}
         {activeTab === "notes" && <NotesPanel />}
         {activeTab === "mindmap" && <MindMapPanel />}
-        {activeTab === "chat" && <ChatPanel />}
+        {/* Chat stays mounted (hidden) so "Ask"/add-to-chat from the PDF or a panel
+            lands reliably and per-paper history isn't lost when switching tabs. */}
+        <div style={{ display: activeTab === "chat" ? "flex" : "none", flex: 1, minWidth: 0 }}>
+          <ChatPanel />
+        </div>
         {activeTab === "explain" && <ExplainPanel />}
         {activeTab === "translate" && <TranslatePanel />}
         {activeTab === "highlights" && <HighlightsPanel />}

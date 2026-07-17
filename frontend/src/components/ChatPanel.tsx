@@ -8,6 +8,9 @@ interface Msg {
   content: string;
 }
 
+// module-scoped so a given "ask" selection is sent exactly once, even across remounts
+let lastAskId = 0;
+
 export function ChatPanel() {
   const current = useStore((s) => s.current);
   const action = useStore((s) => s.selectionAction);
@@ -94,11 +97,16 @@ export function ChatPanel() {
     setBusy(false);
   }
 
-  // "Ask" from the selection popover.
+  // "Ask" from a selection popover (PDF or a side panel). Fire once per selection.
   useEffect(() => {
-    if (action?.kind === "ask") {
-      send(`Explain / discuss this selection.`, action.selection.text);
+    if (action?.kind === "ask" && action.id !== lastAskId) {
+      lastAskId = action.id;
+      send(
+        "Explain and discuss this selection from the paper (it may be an equation, table, or text).",
+        action.selection.text,
+      );
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [action?.id]);
 
   return (

@@ -17,7 +17,7 @@ export function SelectionPopover({
     <div className="sel-popover" style={{ left: pos.x, top: pos.y }} onMouseDown={(e) => e.preventDefault()}>
       <button onClick={() => { run("explain"); onClose(); }}>💡 Explain</button>
       <button onClick={() => { run("translate"); onClose(); }}>🌐 Translate</button>
-      <button onClick={() => { run("ask"); onClose(); }}>💬 Ask</button>
+      <button onClick={() => { run("ask"); onClose(); }}>💬 加入会话</button>
       <span className="hl-colors">
         {COLORS.map((c) => (
           <button
