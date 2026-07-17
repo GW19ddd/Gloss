@@ -3,6 +3,7 @@ import { useStore } from "./store";
 import { Library } from "./components/Library";
 import { Outline } from "./components/Outline";
 import { SidePanel } from "./components/SidePanel";
+import { ThemePicker } from "./components/ThemePicker";
 import { PdfViewer } from "./pdf/PdfViewer";
 
 export default function App() {
@@ -91,6 +92,7 @@ export default function App() {
           </div>
         )}
         <div className="spacer" />
+        <ThemePicker />
         <div className="provider-badge" title="Active AI provider">⚡ {provider}</div>
       </header>
 

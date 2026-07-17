@@ -14,7 +14,7 @@ export function SelectionPopover({
   const selection = useStore((s) => s.selection);
 
   return (
-    <div className="sel-popover" style={{ left: pos.x, top: pos.y }} onMouseDown={(e) => e.preventDefault()}>
+    <div className="sel-popover" style={{ position: "fixed", left: pos.x, top: pos.y }} onMouseDown={(e) => e.preventDefault()}>
       <button onClick={() => { run("explain"); onClose(); }}>💡 Explain</button>
       <button onClick={() => { run("translate"); onClose(); }}>🌐 Translate</button>
       <button onClick={() => { run("ask"); onClose(); }}>💬 加入会话</button>

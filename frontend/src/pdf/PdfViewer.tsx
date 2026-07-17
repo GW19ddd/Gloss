@@ -142,10 +142,11 @@ export function PdfViewer() {
     setSelection({ text, page: pageIndex, rects });
     const last = clientRects[clientRects.length - 1];
     if (last) {
-      const cr = containerRef.current!.getBoundingClientRect();
+      // position the popover in viewport coords, right beside the selection
+      // (rendered position:fixed), clamped so it can't run off the right edge
       setPopover({
-        x: last.right - cr.left + containerRef.current!.scrollLeft,
-        y: last.bottom - cr.top + containerRef.current!.scrollTop + 6,
+        x: Math.max(8, Math.min(last.left, window.innerWidth - 330)),
+        y: last.bottom + 8,
       });
     }
   }
