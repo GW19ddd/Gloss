@@ -31,8 +31,9 @@ export default function App() {
   );
 
   useEffect(() => {
-    // apply the saved theme on load (the picker itself now lives in Settings)
+    // apply the saved theme + PDF night mode on load (controls live in Settings)
     document.documentElement.dataset.theme = localStorage.getItem("gloss.theme") || "midnight";
+    document.documentElement.dataset.pdf = localStorage.getItem("gloss.pdfDark") === "1" ? "dark" : "light";
     loadPapers();
     loadSettings();
   }, []);

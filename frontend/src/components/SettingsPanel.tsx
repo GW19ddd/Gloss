@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { useStore } from "../store";
 import { ThemePicker } from "./ThemePicker";
+import { PdfModeToggle } from "./PdfModeToggle";
 
 const LANGS = [
   "中文 (Simplified Chinese)",
@@ -61,6 +62,9 @@ export function SettingsPanel() {
     <div className="panel-body settings">
       <label>主题 / Theme</label>
       <ThemePicker />
+
+      <label>PDF 阅读 / Reading</label>
+      <PdfModeToggle />
 
       <label>Active AI provider</label>
       <select value={cfg.provider} onChange={(e) => setCfg({ ...cfg, provider: e.target.value })}>

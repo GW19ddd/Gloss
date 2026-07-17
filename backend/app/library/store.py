@@ -305,6 +305,12 @@ def list_chats(paper_id: str) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def delete_chat(chat_id: str) -> None:
+    with _conn() as con:
+        con.execute("DELETE FROM messages WHERE chat_id=?", (chat_id,))
+        con.execute("DELETE FROM chats WHERE id=?", (chat_id,))
+
+
 def add_message(chat_id: str, role: str, content: str) -> dict:
     mid = _uid()
     with _conn() as con:

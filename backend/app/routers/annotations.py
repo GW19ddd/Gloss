@@ -73,3 +73,9 @@ async def create_chat(paper_id: str, body: ChatCreate):
 @router.get("/chats/{chat_id}/messages")
 async def chat_messages(chat_id: str):
     return {"messages": store.list_messages(chat_id)}
+
+
+@router.delete("/chats/{chat_id}")
+async def delete_chat(chat_id: str):
+    store.delete_chat(chat_id)
+    return {"ok": True}

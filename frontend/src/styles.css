@@ -404,3 +404,12 @@ button.small { font-size: 12px; padding: 3px 8px; margin-top: 6px; }
 .brand-zh { font-size: 12px; color: var(--fg-dim); letter-spacing: 0.04em; }
 .hero-title { display: inline-flex; align-items: center; gap: 12px; justify-content: center; }
 .hero-zh { font-size: 26px; color: var(--fg-dim); font-weight: 600; }
+
+/* PDF night mode — invert the rendered page (keeps colours via hue-rotate) */
+:root[data-pdf="dark"] .pdf-page { background: #12151b; }
+:root[data-pdf="dark"] .pdf-page canvas { filter: invert(1) hue-rotate(180deg); }
+:root[data-pdf="dark"] .highlight-layer .hl { mix-blend-mode: screen; }
+
+/* delete chat session button */
+.chat-del { background: var(--bg3); border: 1px solid var(--border); color: var(--fg-dim); border-radius: 7px; padding: 4px 8px; font-size: 12px; }
+.chat-del:hover { color: var(--danger); border-color: var(--danger); }

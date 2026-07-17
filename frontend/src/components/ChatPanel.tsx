@@ -53,6 +53,8 @@ export function ChatPanel() {
   const [busy, setBusy] = useState(false);
   const [streamed, setStreamed] = useState("");
   const bodyRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const setSelection = useStore((s) => s.setSelection);
 
   async function loadMessages(cid: string) {
     try {
@@ -119,6 +121,26 @@ export function ChatPanel() {
     setChatId(cid);
     await loadMessages(cid);
   }
+  async function deleteCurrentChat() {
+    if (!current?.id || !chatId || busy) return;
+    if (!confirm("删除当前会话及其全部消息？")) return;
+    try {
+      await api.deleteChat(chatId);
+      const list = (await api.listChats(current.id)).chats as Chat[];
+      if (list.length) {
+        setChats(list);
+        setChatId(list[0].id);
+        await loadMessages(list[0].id);
+      } else {
+        const c = await api.createChat(current.id);
+        setChats([{ id: c.id, title: "Chat", created_at: Date.now() / 1000 }]);
+        setChatId(c.id);
+        setMsgs([]);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
 
   async function send(text: string, selText?: string) {
     if (!text.trim() || busy) return;
@@ -174,7 +196,10 @@ export function ChatPanel() {
       const sel = action.selection.text;
       const zh = outputLanguage.startsWith("中文");
       const prefix = zh ? "解释并讨论我选中的这段内容：" : "Explain and discuss this selected content:";
-      send(`${prefix}\n\n${sel}`);
+      send(`${prefix}\n\n${sel}`).finally(() => {
+        setSelection(null); // clear the attached selection so you can keep typing freely
+        inputRef.current?.focus();
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [action?.id]);
@@ -197,6 +222,9 @@ export function ChatPanel() {
         </select>
         <button className="chat-new" onClick={newChat} disabled={busy} title="Start a new conversation">
           ＋ 新会话
+        </button>
+        <button className="chat-del" onClick={deleteCurrentChat} disabled={busy || !chatId} title="删除当前会话">
+          🗑
         </button>
       </div>
       <div className="chat-body" ref={bodyRef}>
@@ -226,6 +254,7 @@ export function ChatPanel() {
           </div>
         )}
         <textarea
+          ref={inputRef}
           value={input}
           placeholder={`Message (${provider})…  ⏎ to send`}
           onChange={(e) => setInput(e.target.value)}

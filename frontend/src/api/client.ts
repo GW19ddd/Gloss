@@ -233,6 +233,8 @@ export const api = {
     fetch(`/api/chats/${chatId}/messages`).then((r) =>
       j<{ messages: { role: string; content: string }[] }>(r),
     ),
+  deleteChat: (chatId: string) =>
+    fetch(`/api/chats/${chatId}`, { method: "DELETE" }).then((r) => j<any>(r)),
 
   listSkills: () => fetch("/api/skills").then((r) => j<{ skills: Skill[]; count: number }>(r)),
 
