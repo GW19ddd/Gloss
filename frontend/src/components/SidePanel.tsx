@@ -12,18 +12,18 @@ import { SettingsPanel } from "./SettingsPanel";
 import { MindMapPanel } from "./MindMapPanel";
 import { NotesPanel } from "./NotesPanel";
 
-const TABS: { id: string; en: string; zh: string }[] = [
-  { id: "summary", en: "Summary", zh: "速览" },
-  { id: "notes", en: "Notes", zh: "笔记" },
-  { id: "mindmap", en: "Mind Map", zh: "思维导图" },
-  { id: "chat", en: "Chat", zh: "对话" },
-  { id: "explain", en: "Explain", zh: "解释" },
-  { id: "translate", en: "Translate", zh: "翻译" },
-  { id: "highlights", en: "Highlights", zh: "高亮" },
-  { id: "references", en: "References", zh: "参考文献" },
-  { id: "scholar", en: "Scholar", zh: "学术" },
-  { id: "skills", en: "Skills", zh: "技能" },
-  { id: "settings", en: "Settings", zh: "设置" },
+const TABS: { id: string; en: string; zh: string; C: () => JSX.Element }[] = [
+  { id: "summary", en: "Summary", zh: "速览", C: SummaryPanel },
+  { id: "notes", en: "Notes", zh: "笔记", C: NotesPanel },
+  { id: "mindmap", en: "Mind Map", zh: "思维导图", C: MindMapPanel },
+  { id: "chat", en: "Chat", zh: "对话", C: ChatPanel },
+  { id: "explain", en: "Explain", zh: "解释", C: ExplainPanel },
+  { id: "translate", en: "Translate", zh: "翻译", C: TranslatePanel },
+  { id: "highlights", en: "Highlights", zh: "高亮", C: HighlightsPanel },
+  { id: "references", en: "References", zh: "参考文献", C: ReferencesPanel },
+  { id: "scholar", en: "Scholar", zh: "学术", C: ScholarPanel },
+  { id: "skills", en: "Skills", zh: "技能", C: SkillsPanel },
+  { id: "settings", en: "Settings", zh: "设置", C: SettingsPanel },
 ];
 
 export function SidePanel() {
@@ -54,22 +54,17 @@ export function SidePanel() {
           </button>
         ))}
       </div>
+      {/* Every panel stays mounted (hidden when inactive) so scroll position,
+          mind-map pan/zoom, and in-flight work are preserved across tab switches. */}
       <div className="tab-content" onMouseUp={onMouseUp} onMouseDown={() => setAsk(null)}>
-        {activeTab === "summary" && <SummaryPanel />}
-        {activeTab === "notes" && <NotesPanel />}
-        {activeTab === "mindmap" && <MindMapPanel />}
-        {/* Chat stays mounted (hidden) so "Ask"/add-to-chat from the PDF or a panel
-            lands reliably and per-paper history isn't lost when switching tabs. */}
-        <div style={{ display: activeTab === "chat" ? "flex" : "none", flex: 1, minWidth: 0 }}>
-          <ChatPanel />
-        </div>
-        {activeTab === "explain" && <ExplainPanel />}
-        {activeTab === "translate" && <TranslatePanel />}
-        {activeTab === "highlights" && <HighlightsPanel />}
-        {activeTab === "references" && <ReferencesPanel />}
-        {activeTab === "scholar" && <ScholarPanel />}
-        {activeTab === "skills" && <SkillsPanel />}
-        {activeTab === "settings" && <SettingsPanel />}
+        {TABS.map((t) => {
+          const C = t.C;
+          return (
+            <div key={t.id} className="tab-pane" style={{ display: activeTab === t.id ? "flex" : "none" }}>
+              <C />
+            </div>
+          );
+        })}
       </div>
       {ask && (
         <button

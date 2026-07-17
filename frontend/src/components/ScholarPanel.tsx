@@ -1,14 +1,6 @@
-import { useEffect, useState } from "react";
 import { api, ScholarResult } from "../api/client";
 import { runOp, useOp } from "../api/ops";
 import { useStore } from "../store";
-
-// remembered across tab switches (module scope survives unmount) so the scholar
-// view + query persist; the search/recommend requests run in the detached op
-// cache, so leaving this tab mid-search never interrupts them.
-let lastKey: string | null = null;
-let lastQuery = "";
-let lastPaperId: string | undefined;
 
 export function ScholarPanel() {
   const current = useStore((s) => s.current);
@@ -16,9 +8,11 @@ export function ScholarPanel() {
   const notify = useStore((s) => s.notify);
   const loadPapers = useStore((s) => s.loadPapers);
   const openPaper = useStore((s) => s.openPaper);
-  const [q, setQ] = useState(lastQuery);
-  const [activeKey, setActiveKey] = useState<string | null>(lastKey);
-  const { data: results = [], loading: busy } = useOp<ScholarResult[]>(activeKey);
+  // view state lives in the store → survives tab switches, resets on paper change
+  const view = useStore((s) => s.scholarView);
+  const setView = useStore((s) => s.setScholarView);
+  // results run in the detached op cache → search keeps going if you switch tabs
+  const { data: results = [], loading: busy } = useOp<ScholarResult[]>(view.key);
 
   const T = {
     en: {
@@ -26,6 +20,7 @@ export function ScholarPanel() {
       search: "Search",
       related: "✦ Related",
       relatedTitle: "Related to this paper",
+      clear: "Clear",
       searching: "Searching…",
       importAction: "＋ Import to library",
       imported: "Imported: ",
@@ -36,6 +31,7 @@ export function ScholarPanel() {
       search: "搜索",
       related: "✦ 相关文献",
       relatedTitle: "与本文相关",
+      clear: "清空",
       searching: "搜索中…",
       importAction: "＋ 导入到文库",
       imported: "已导入：",
@@ -43,31 +39,17 @@ export function ScholarPanel() {
     },
   }[uiLang];
 
-  // clear the scholar view only on a real paper change (not on tab-switch remounts)
-  useEffect(() => {
-    if (current?.id !== lastPaperId) {
-      lastPaperId = current?.id;
-      lastKey = null;
-      setActiveKey(null);
-    }
-  }, [current?.id]);
-
-  function onQ(v: string) {
-    lastQuery = v;
-    setQ(v);
-  }
   function search() {
-    if (!q.trim()) return;
-    const key = `scholar:search:${q.trim()}`;
-    lastKey = key;
-    setActiveKey(key);
-    runOp(key, () => api.scholarSearch(q.trim(), 12).then((r) => r.results)).catch(() => {});
+    const query = view.query.trim();
+    if (!query) return;
+    const key = `scholar:search:${query}`;
+    setView({ key, query: view.query });
+    runOp(key, () => api.scholarSearch(query, 12).then((r) => r.results)).catch(() => {});
   }
   function recommend() {
     if (!current) return;
     const key = `scholar:related:${current.id}`;
-    lastKey = key;
-    setActiveKey(key);
+    setView({ key, query: view.query });
     runOp(key, () => api.scholarRecommend(current.id, 12).then((r) => r.results)).catch(() => {});
   }
   async function importPaper(res: ScholarResult) {
@@ -88,14 +70,19 @@ export function ScholarPanel() {
         <input
           className="search"
           placeholder={T.placeholder}
-          value={q}
-          onChange={(e) => onQ(e.target.value)}
+          value={view.query}
+          onChange={(e) => setView({ key: view.key, query: e.target.value })}
           onKeyDown={(e) => e.key === "Enter" && search()}
         />
         <button onClick={search} disabled={busy}>{T.search}</button>
         <button onClick={recommend} disabled={busy || !current} title={T.relatedTitle}>
           {T.related}
         </button>
+        {(view.key || view.query) && (
+          <button className="link" onClick={() => setView({ key: null, query: "" })}>
+            {T.clear}
+          </button>
+        )}
       </div>
       {busy && <div className="muted">{T.searching}</div>}
       {results.map((r, i) => (

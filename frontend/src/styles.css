@@ -437,3 +437,6 @@ button.small { font-size: 12px; padding: 3px 8px; margin-top: 6px; }
 .test-result { font-size: 12.5px; }
 .test-result.ok { color: #34d399; }
 .test-result.bad { color: var(--danger); }
+
+/* mounted-but-hidden side panels (preserve scroll / state across tab switches) */
+.tab-pane { flex: 1; min-width: 0; }

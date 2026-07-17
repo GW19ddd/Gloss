@@ -328,10 +328,13 @@ export function MindMapPanel() {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [focusedId, setFocusedId] = useState<string | null>(null);
 
-  // detached op → generation keeps running if you switch tabs mid-build
+  // detached op; autostart only when this tab is active (panels stay mounted)
+  const active = useStore((s) => s.activeTab) === "mindmap";
   const mmKey = current ? `mindmap:${current.id}` : null;
-  const { data: tree = null, loading, error: err, run } = useOp<MindNode>(mmKey, () =>
-    api.mindmap(current!.id).then((r) => r.tree),
+  const { data: tree = null, loading, error: err, run } = useOp<MindNode>(
+    mmKey,
+    () => api.mindmap(current!.id).then((r) => r.tree),
+    active,
   );
   const regenerate = () => run(() => api.mindmap(current!.id, true).then((r) => r.tree), true);
 

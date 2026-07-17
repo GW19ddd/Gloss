@@ -10,10 +10,13 @@ export function NotesPanel() {
     ? { regenerate: "↻ 重新生成", generating: "生成笔记中…", copy: "⧉ 复制", download: "⬇ 下载 .md" }
     : { regenerate: "↻ Regenerate", generating: "Generating notes…", copy: "⧉ Copy", download: "⬇ Download .md" };
 
-  // detached op → keeps generating even if you switch tabs mid-run
+  // detached op; autostart only when this tab is active (panels stay mounted)
+  const active = useStore((s) => s.activeTab) === "notes";
   const key = current ? `notes:${current.id}` : null;
-  const { data: md = "", loading, error, run } = useOp<string>(key, () =>
-    api.notes(current!.id).then((r) => r.markdown),
+  const { data: md = "", loading, error, run } = useOp<string>(
+    key,
+    () => api.notes(current!.id).then((r) => r.markdown),
+    active,
   );
   const regenerate = () => run(() => api.notes(current!.id, true).then((r) => r.markdown), true);
 

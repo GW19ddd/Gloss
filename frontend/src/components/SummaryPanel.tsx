@@ -12,10 +12,13 @@ export function SummaryPanel() {
       ? { regenerate: "↻ 重新生成", summarizing: "生成摘要中…", reading: "正在阅读论文…" }
       : { regenerate: "↻ Regenerate", summarizing: "Summarizing…", reading: "Reading the paper…" };
 
-  // runs in the detached op cache → keeps going if you switch tabs mid-summary
+  // detached op; autostart only when this tab is active (panels stay mounted)
+  const active = useStore((s) => s.activeTab) === "summary";
   const key = current ? `summary:${current.id}:${outputLanguage}` : null;
-  const { data: sum, loading, error, run } = useOp<Summary>(key, () =>
-    api.summarize(current!.id, { language: outputLanguage }),
+  const { data: sum, loading, error, run } = useOp<Summary>(
+    key,
+    () => api.summarize(current!.id, { language: outputLanguage }),
+    active,
   );
   const regenerate = () =>
     run(() => api.summarize(current!.id, { refresh: true, language: outputLanguage }), true);

@@ -50,8 +50,14 @@ export interface OpResult<T> {
 }
 
 // Subscribe a component to the op at `key`. `autostart` (optional) kicks the op
-// off on mount when nothing is cached or already running for that key.
-export function useOp<T>(key: string | null, autostart?: () => Promise<T>): OpResult<T> {
+// off when nothing is cached or already running — but only once `enabled` is true
+// (panels stay mounted while hidden, so we gate autostart on tab visibility to
+// avoid firing every panel's op at once when a paper opens).
+export function useOp<T>(
+  key: string | null,
+  autostart?: () => Promise<T>,
+  enabled = true,
+): OpResult<T> {
   const [, bump] = useReducer((x) => x + 1, 0);
   useEffect(() => {
     if (!key) return;
@@ -61,7 +67,7 @@ export function useOp<T>(key: string | null, autostart?: () => Promise<T>): OpRe
       listeners.set(key, set);
     }
     set.add(bump);
-    if (autostart && !cache.has(key) && !inflight.has(key)) {
+    if (enabled && autostart && !cache.has(key) && !inflight.has(key)) {
       runOp(key, autostart).catch(() => {});
     }
     bump(); // reflect current state on (re)mount
@@ -69,7 +75,7 @@ export function useOp<T>(key: string | null, autostart?: () => Promise<T>): OpRe
       set!.delete(bump);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  }, [key, enabled]);
   return {
     data: key ? (cache.get(key) as T | undefined) : undefined,
     loading: key ? inflight.has(key) : false,

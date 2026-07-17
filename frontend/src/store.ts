@@ -18,6 +18,7 @@ interface State {
   targetLanguage: string;
   outputLanguage: string;
   uiLang: "en" | "zh"; // interface-chrome language (NOT content/translation language)
+  scholarView: { key: string | null; query: string }; // persists across tab switches
   providers: string[];
   provider: string;
   gotoPage: number | null;
@@ -29,6 +30,7 @@ interface State {
   closePaper: () => void;
   setTab: (t: string) => void;
   setUiLang: (l: "en" | "zh") => void;
+  setScholarView: (v: { key: string | null; query: string }) => void;
   setSelection: (s: Selection | null) => void;
   refreshHighlights: () => Promise<void>;
   loadSettings: () => Promise<void>;
@@ -55,6 +57,7 @@ export const useStore = create<State>((set, get) => ({
   gotoPage: null,
   toast: null,
   selectionAction: null,
+  scholarView: { key: null, query: "" },
 
   loadPapers: async () => {
     const { papers } = await api.listPapers();
@@ -62,7 +65,10 @@ export const useStore = create<State>((set, get) => ({
   },
   openPaper: async (id) => {
     const [paper, pages] = await Promise.all([api.getPaper(id), api.getPages(id)]);
-    set({ current: paper, pages, view: "reader", activeTab: "summary", selection: null });
+    set({
+      current: paper, pages, view: "reader", activeTab: "summary", selection: null,
+      scholarView: { key: null, query: "" },
+    });
     get().refreshHighlights();
   },
   closePaper: () => set({ view: "library", current: null, pages: null, highlights: [], selection: null }),
@@ -71,6 +77,7 @@ export const useStore = create<State>((set, get) => ({
     localStorage.setItem("gloss.uiLang", l);
     set({ uiLang: l });
   },
+  setScholarView: (v) => set({ scholarView: v }),
   setSelection: (s) => set({ selection: s }),
   refreshHighlights: async () => {
     const cur = get().current;
