@@ -261,3 +261,11 @@ button.small { font-size: 12px; padding: 3px 8px; margin-top: 6px; }
 .ask-chat-pop:hover { background: var(--accent2); }
 .hl-ask { background: none; border: none; color: var(--fg-dim); font-size: 13px; padding: 0 3px; }
 .hl-ask:hover { color: var(--accent); }
+
+/* chat sessions header + expandable user messages */
+.chat-head { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--border); background: var(--bg2); flex: 0 0 auto; }
+.chat-session { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--border); color: var(--fg); border-radius: 7px; padding: 4px 8px; font-size: 12px; }
+.chat-new { background: var(--bg3); border: 1px solid var(--border); color: var(--fg); border-radius: 7px; padding: 4px 10px; font-size: 12px; white-space: nowrap; }
+.chat-new:hover { border-color: var(--accent); }
+.msg-more { background: none; border: none; color: var(--accent); font-size: 12px; padding: 2px 0 0 4px; cursor: pointer; display: inline; }
+.msg-more:hover { text-decoration: underline; }
