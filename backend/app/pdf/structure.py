@@ -17,6 +17,14 @@ _HEADINGS = re.compile(
     re.IGNORECASE,
 )
 _REF_HEAD = re.compile(r"^(references|bibliography)\s*$", re.IGNORECASE)
+_NUM_ONLY = re.compile(r"^(\d+(?:\.\d+)*)\.?$")            # "1", "2.1"
+_NUM_PREFIX = re.compile(r"^(\d+(?:\.\d+)*)\.?\s+\S")      # "1 Introduction"
+# pseudocode / caption lines that should NOT be treated as section headings
+_HEADING_NOISE = re.compile(
+    r"^(algorithm|figure|fig\.|table|for\b|if\b|while\b|return\b|end\b|input\b|"
+    r"output\b|repeat\b|[–—•])",
+    re.IGNORECASE,
+)
 
 
 def _body_size(pages: list[dict]) -> float:
@@ -49,27 +57,49 @@ def detect_sections(parsed: dict) -> list[dict]:
 
     for p in pages:
         for b in p["blocks"]:
-            text = b["text"].strip()
-            first_line = text.splitlines()[0] if text else ""
-            if len(first_line) > 120:
+            lines = [ln.strip() for ln in b["text"].splitlines() if ln.strip()]
+            if not lines:
                 continue
+            first = lines[0]
+            if len(first) > 120 or _HEADING_NOISE.match(first):
+                continue
+
+            # figure out numbering + a full title (headings often split the
+            # number and the title text across two lines: "1" / "Introduction")
+            num = None
+            title = first
+            m_only = _NUM_ONLY.match(first)
+            if m_only:
+                num = m_only.group(1)
+                title = f"{num} {lines[1]}" if len(lines) > 1 else num
+            elif _NUM_PREFIX.match(first):
+                num = _NUM_PREFIX.match(first).group(1)
+                title = first
+
             is_big = b["size"] >= body * 1.12
-            looks_numbered = bool(_SECTION_NUM.match(first_line))
-            looks_named = bool(_HEADINGS.match(first_line)) and len(first_line) < 60
-            # a bold/large block only counts as a heading if it's also short,
-            # otherwise bold lead-in sentences get mistaken for sections.
-            short_bold = b.get("bold") and is_big and len(first_line) < 40
-            if (is_big and (looks_numbered or looks_named)) or looks_named or short_bold:
-                level = 1
-                m = _SECTION_NUM.match(first_line)
-                if m:
-                    level = first_line.count(".", 0, len(m.group(1))) + 1
-                sections.append({
-                    "title": first_line.strip(),
-                    "page": p["index"],
-                    "block_id": b["id"],
-                    "level": level,
-                })
+            looks_numbered = num is not None
+            looks_named = bool(_HEADINGS.match(first)) and len(first) < 60
+            short_bold = bool(b.get("bold")) and is_big and len(first) < 40
+
+            if not ((is_big and (looks_numbered or looks_named)) or looks_named or short_bold):
+                continue
+            # drop entries that are still just a bare number (no title text)
+            if _NUM_ONLY.match(title):
+                continue
+            # real sections don't start at 0 (those are equation/axis fragments)
+            if num and num.split(".")[0] == "0":
+                continue
+            # a numbered heading must carry real words, not equation symbols
+            if looks_numbered and not re.search(r"[A-Za-z]{2,}", title):
+                continue
+
+            level = num.count(".") + 1 if num else 1
+            sections.append({
+                "title": title.strip()[:90],
+                "page": p["index"],
+                "block_id": b["id"],
+                "level": level,
+            })
     return sections
 
 

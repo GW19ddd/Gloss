@@ -3,6 +3,9 @@ import { api } from "../api/client";
 import { useStore } from "../store";
 import { Markdown } from "./Markdown";
 
+// module-scoped cache so re-opening the tab is instant (no re-fetch/regenerate)
+const CACHE = new Map<string, string>();
+
 export function NotesPanel() {
   const current = useStore((s) => s.current);
   const [md, setMd] = useState("");
@@ -11,10 +14,15 @@ export function NotesPanel() {
 
   async function load(refresh = false) {
     if (!current) return;
+    if (!refresh && CACHE.has(current.id)) {
+      setMd(CACHE.get(current.id)!);
+      return;
+    }
     setLoading(true);
     setErr("");
     try {
       const r = await api.notes(current.id, refresh);
+      CACHE.set(current.id, r.markdown);
       setMd(r.markdown);
     } catch (e: any) {
       setErr(String(e.message || e));
@@ -23,7 +31,7 @@ export function NotesPanel() {
     }
   }
   useEffect(() => {
-    setMd("");
+    setMd(current && CACHE.has(current.id) ? CACHE.get(current.id)! : "");
     load(false);
   }, [current?.id]);
 

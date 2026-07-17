@@ -6,17 +6,23 @@ from ..library import store
 from .common import json_complete, truncate_to_tokens
 
 SYSTEM = (
-    "You are Moonlight, an expert who distills an academic paper into a clear "
-    "mind map. The root is the paper's core topic/title. Branches are the major "
-    "aspects (e.g. Problem/Motivation, Key Idea, Method components, Experiments, "
-    "Results, Contributions, Limitations). Leaves are concrete specifics. Keep "
-    "every \"title\" SHORT (max ~8 words, no trailing period). Aim for 5-8 top "
-    "branches, 2-5 children each, depth 2-3. Do not invent facts; only use the paper."
+    "You are Moonlight, an expert who distills an academic paper into a clear, "
+    "richly-annotated mind map. The root is the paper's core topic/title. Branches "
+    "are the major aspects; leaves are concrete specifics. For EVERY node provide:\n"
+    "  - title: SHORT label (max ~8 words, no trailing period)\n"
+    "  - kind: one of problem | method | result | concept | contribution | "
+    "background | experiment | limitation | data  (root uses kind \"root\")\n"
+    "  - summary: 1-2 sentence plain-language explanation of that node, faithful to "
+    "the paper (concrete: name the technique/number/finding). This is shown when the "
+    "user clicks the node.\n"
+    "Aim for 5-8 top branches, 2-5 children each, depth 2-3. Do not invent facts; "
+    "only use the paper."
 )
 
 SHAPE = (
-    '{"title": "root = the paper topic", '
-    '"children": [{"title": "branch", "children": [{"title": "leaf"}]}]}'
+    '{"title": "paper topic", "kind": "root", "summary": "one-sentence overview", '
+    '"children": [{"title": "branch", "kind": "method", "summary": "1-2 sentences", '
+    '"children": [{"title": "leaf", "kind": "concept", "summary": "1-2 sentences"}]}]}'
 )
 
 
@@ -25,7 +31,7 @@ async def build_mindmap(
     provider: str | None = None, model: str | None = None,
 ) -> dict:
     lang = language or output_language()
-    cache_key = f"mindmap:{lang}"
+    cache_key = f"mindmap2:{lang}"  # v2 = nodes with kind + summary
     if not refresh:
         cached = store.cache_get(paper_id, cache_key)
         if cached:

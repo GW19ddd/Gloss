@@ -252,3 +252,9 @@ button.small { font-size: 12px; padding: 3px 8px; margin-top: 6px; }
 .trans-cell { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 11px; margin: 6px 0; font-size: 13px; line-height: 1.65; }
 .trans-cell .trans-orig { color: var(--fg-dim); font-size: 12px; margin-bottom: 5px; padding-bottom: 5px; border-bottom: 1px dashed var(--border); }
 .trans-cell .trans-zh { color: var(--fg); }
+
+/* "add to chat" popover for text selected inside side panels */
+.ask-chat-pop { background: var(--accent); color: #0b0e13; border: none; border-radius: 8px; padding: 5px 10px; font-size: 12px; font-weight: 600; box-shadow: 0 6px 20px rgba(0,0,0,0.5); cursor: pointer; }
+.ask-chat-pop:hover { background: var(--accent2); }
+.hl-ask { background: none; border: none; color: var(--fg-dim); font-size: 13px; padding: 0 3px; }
+.hl-ask:hover { color: var(--accent); }

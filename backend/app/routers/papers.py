@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from ..library import importers, service, store
+from ..pdf import structure
 
 router = APIRouter(prefix="/api/papers", tags=["papers"])
 
@@ -93,10 +94,13 @@ async def get_pages(paper_id: str):
     parsed = store.load_parsed(paper_id)
     if not parsed:
         raise HTTPException(404, "parsed data not found")
+    # recompute sections from stored blocks so heuristic improvements apply to
+    # already-ingested papers without re-parsing the PDF
+    sections = structure.detect_sections(parsed)
     return {
         "n_pages": parsed["n_pages"],
         "pages": parsed["pages"],
-        "sections": parsed.get("sections", []),
+        "sections": sections,
         "toc": parsed.get("toc", []),
     }
 

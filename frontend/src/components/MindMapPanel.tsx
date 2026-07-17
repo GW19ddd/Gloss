@@ -15,16 +15,30 @@ import "@xyflow/react/dist/style.css";
 import { api, MindNode } from "../api/client";
 import { useStore } from "../store";
 
+// module-scoped cache so re-opening the tab is instant (no re-fetch/regenerate)
+const MM_CACHE = new Map<string, MindNode>();
+
 // Hard cap on how many tree nodes we lay out (keeps huge maps readable + fast).
 const MAX_NODES = 80;
 // Layout geometry (deterministic left-to-right tidy tree).
 const X_STEP = 260;
 const Y_STEP = 64;
 
-// Left-bar color by depth: root -> accent2, depth1 -> accent, then muted teal / gray.
+// Left-bar color by depth (fallback when a node has no kind).
 const DEPTH_COLORS = ["var(--accent2)", "var(--accent)", "#4fb8a0", "#7f8aa0"];
 function colorForDepth(depth: number): string {
   return DEPTH_COLORS[Math.min(depth, DEPTH_COLORS.length - 1)];
+}
+
+// Primary coloring: by semantic KIND. Fallback to depth-based color when absent.
+const KIND_COLOR: Record<string, string> = {
+  root: "#a78bfa", problem: "#ef9a9a", method: "#90caf9", result: "#ffd54f",
+  concept: "#ce93d8", contribution: "#a5d6a7", background: "#ffcc80",
+  experiment: "#80deea", limitation: "#ef6b6b", data: "#b0bec5",
+};
+function colorForKind(kind: string | undefined, depth: number): string {
+  if (kind && KIND_COLOR[kind]) return KIND_COLOR[kind];
+  return colorForDepth(depth);
 }
 
 // ---------------------------------------------------------------------------
@@ -32,6 +46,8 @@ function colorForDepth(depth: number): string {
 // ---------------------------------------------------------------------------
 interface MindNodeData {
   title: string;
+  kind?: string;
+  summary?: string;
   depth: number;
   isRoot: boolean;
   hasChildren: boolean;
@@ -54,13 +70,13 @@ const hiddenHandle = {
 
 function MindCardImpl({ data }: NodeProps) {
   const d = data as unknown as MindNodeData;
-  const bar = colorForDepth(d.depth);
+  const bar = colorForKind(d.kind, d.depth);
   return (
     <div
       style={{
         position: "relative",
         minWidth: 150,
-        maxWidth: 230,
+        maxWidth: 250,
         background: "var(--bg2)",
         border: "1px solid var(--border)",
         borderLeft: `4px solid ${bar}`,
@@ -93,17 +109,51 @@ function MindCardImpl({ data }: NodeProps) {
             {d.collapsed ? "▸" : "▾"}
           </span>
         )}
-        <span
-          style={{
-            display: "-webkit-box",
-            WebkitLineClamp: 3,
-            WebkitBoxOrient: "vertical",
-            overflow: "hidden",
-            wordBreak: "break-word",
-          }}
-        >
-          {d.title || "·"}
-        </span>
+        <div style={{ minWidth: 0 }}>
+          {d.kind && (
+            <div
+              style={{
+                fontSize: 9,
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                color: bar,
+                marginBottom: 1,
+              }}
+            >
+              {d.kind}
+            </div>
+          )}
+          <div
+            style={{
+              display: "-webkit-box",
+              WebkitLineClamp: 3,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+              wordBreak: "break-word",
+            }}
+          >
+            {d.title || "·"}
+          </div>
+          {d.summary && (
+            <div
+              style={{
+                marginTop: 3,
+                fontSize: 11,
+                lineHeight: 1.35,
+                color: "var(--fg-dim)",
+                fontWeight: 400,
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+                wordBreak: "break-word",
+              }}
+            >
+              {d.summary}
+            </div>
+          )}
+        </div>
       </div>
       <Handle type="source" position={Position.Right} style={hiddenHandle} />
     </div>
@@ -120,6 +170,8 @@ const nodeTypes: NodeTypes = { mind: MindCard };
 interface FlatNode {
   id: string;
   title: string;
+  kind?: string;
+  summary?: string;
   depth: number;
   parentId: string | null;
   childIds: string[];
@@ -145,6 +197,8 @@ function buildFlat(tree: MindNode | null): Flat {
     const flat: FlatNode = {
       id,
       title: (node.title ?? "").toString(),
+      kind: node.kind ? node.kind.toString() : undefined,
+      summary: node.summary ? node.summary.toString() : undefined,
       depth,
       parentId,
       childIds: [],
@@ -203,6 +257,8 @@ function layout(flat: Flat, collapsed: Set<string>): { nodes: Node[]; edges: Edg
       position: { x: f.depth * X_STEP, y },
       data: {
         title: f.title,
+        kind: f.kind,
+        summary: f.summary,
         depth: f.depth,
         isRoot: f.parentId === null,
         hasChildren: f.childIds.length > 0,
@@ -237,10 +293,15 @@ export function MindMapPanel() {
 
   async function load(refresh = false) {
     if (!current) return;
+    if (!refresh && MM_CACHE.has(current.id)) {
+      setTree(MM_CACHE.get(current.id)!);
+      return;
+    }
     setLoading(true);
     setErr("");
     try {
       const { tree } = await api.mindmap(current.id, refresh);
+      MM_CACHE.set(current.id, tree);
       setTree(tree);
     } catch (e: any) {
       setErr(String(e?.message || e));
@@ -250,7 +311,7 @@ export function MindMapPanel() {
   }
 
   useEffect(() => {
-    setTree(null);
+    setTree(current && MM_CACHE.has(current.id) ? MM_CACHE.get(current.id)! : null);
     setCollapsed(new Set());
     setFocusedId(null);
     load(false);
@@ -323,6 +384,25 @@ export function MindMapPanel() {
 
   const clearFocus = useCallback(() => setFocusedId(null), []);
 
+  // Select a node from the details drawer: reuse the focus mechanism and make
+  // sure the node is visible by expanding its (possibly collapsed) parent.
+  const selectNode = useCallback(
+    (id: string) => {
+      setFocusedId(id);
+      const info = flat.byId.get(id);
+      if (info && info.parentId) {
+        const parentId = info.parentId;
+        setCollapsed((prev) => {
+          if (!prev.has(parentId)) return prev;
+          const next = new Set(prev);
+          next.delete(parentId);
+          return next;
+        });
+      }
+    },
+    [flat],
+  );
+
   let body: React.ReactNode;
   if (!current) {
     body = (
@@ -343,6 +423,50 @@ export function MindMapPanel() {
       </div>
     );
   } else {
+    // Details-drawer data: selected node (== focused) + its connections.
+    const selected = focusedId ? flat.byId.get(focusedId) ?? null : null;
+    const parent =
+      selected && selected.parentId ? flat.byId.get(selected.parentId) ?? null : null;
+    const children = selected
+      ? (selected.childIds
+          .map((cid) => flat.byId.get(cid))
+          .filter(Boolean) as FlatNode[])
+      : [];
+    const connRow = (n: FlatNode) => (
+      <button
+        key={n.id}
+        onClick={() => selectNode(n.id)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          width: "100%",
+          textAlign: "left",
+          background: n.id === focusedId ? "var(--bg2)" : "none",
+          border: "1px solid var(--border)",
+          borderRadius: 7,
+          padding: "5px 8px",
+          marginBottom: 4,
+          color: "var(--fg)",
+          fontSize: 12,
+          cursor: "pointer",
+        }}
+      >
+        <span
+          style={{
+            flex: "0 0 auto",
+            width: 8,
+            height: 8,
+            borderRadius: 2,
+            background: colorForKind(n.kind, n.depth),
+          }}
+        />
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {n.title || "·"}
+        </span>
+      </button>
+    );
+
     body = (
       <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
         <div style={{ position: "absolute", inset: 0 }}>
@@ -365,12 +489,126 @@ export function MindMapPanel() {
             <MiniMap
               pannable
               zoomable
-              nodeColor={(n) => colorForDepth((n.data as MindNodeData)?.depth ?? 0)}
+              nodeColor={(n) =>
+                colorForKind(
+                  (n.data as MindNodeData)?.kind,
+                  (n.data as MindNodeData)?.depth ?? 0,
+                )
+              }
               style={{ background: "var(--bg2)" }}
             />
             <Controls />
           </ReactFlow>
         </div>
+        {selected && (
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: 260,
+              background: "var(--panel)",
+              borderLeft: "1px solid var(--border)",
+              overflowY: "auto",
+              padding: 12,
+              zIndex: 5,
+            }}
+          >
+            <button
+              onClick={clearFocus}
+              title="Close"
+              style={{
+                position: "absolute",
+                top: 8,
+                right: 8,
+                background: "none",
+                border: "none",
+                color: "var(--fg-dim)",
+                fontSize: 16,
+                lineHeight: 1,
+                cursor: "pointer",
+              }}
+            >
+              ×
+            </button>
+            {selected.kind && (
+              <span
+                style={{
+                  display: "inline-block",
+                  fontSize: 9,
+                  fontWeight: 700,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  color: "var(--bg2)",
+                  background: colorForKind(selected.kind, selected.depth),
+                  borderRadius: 5,
+                  padding: "2px 6px",
+                  marginBottom: 6,
+                }}
+              >
+                {selected.kind}
+              </span>
+            )}
+            <div
+              style={{
+                fontWeight: 700,
+                fontSize: 14,
+                lineHeight: 1.3,
+                color: "var(--fg)",
+                paddingRight: 16,
+                wordBreak: "break-word",
+              }}
+            >
+              {selected.title || "·"}
+            </div>
+            {selected.summary && (
+              <div
+                style={{
+                  marginTop: 8,
+                  fontSize: 12.5,
+                  lineHeight: 1.45,
+                  color: "var(--fg-dim)",
+                  wordBreak: "break-word",
+                }}
+              >
+                {selected.summary}
+              </div>
+            )}
+            {(parent || children.length > 0) && (
+              <div style={{ marginTop: 14 }}>
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                    color: "var(--fg-dim)",
+                    marginBottom: 6,
+                  }}
+                >
+                  Connections
+                </div>
+                {parent && (
+                  <>
+                    <div style={{ fontSize: 10, color: "var(--fg-dim)", margin: "6px 0 3px" }}>
+                      Parent
+                    </div>
+                    {connRow(parent)}
+                  </>
+                )}
+                {children.length > 0 && (
+                  <>
+                    <div style={{ fontSize: 10, color: "var(--fg-dim)", margin: "8px 0 3px" }}>
+                      Children ({children.length})
+                    </div>
+                    {children.map((c) => connRow(c))}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }

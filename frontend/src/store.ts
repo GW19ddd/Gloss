@@ -33,6 +33,7 @@ interface State {
   setGoto: (p: number | null) => void;
   notify: (m: string | null) => void;
   runSelectionAction: (kind: "explain" | "translate" | "ask") => void;
+  askAboutText: (text: string) => void;
   addUserHighlight: (color?: string) => Promise<void>;
 }
 
@@ -90,6 +91,13 @@ export const useStore = create<State>((set, get) => ({
     if (!sel) return;
     const tab = kind === "ask" ? "chat" : kind;
     set({ activeTab: tab, selectionAction: { kind, selection: sel, id: Date.now() } });
+  },
+  askAboutText: (text) => {
+    const t = (text || "").trim();
+    if (!t) return;
+    const sel = { text: t, page: 0, rects: [] as [number, number, number, number][] };
+    // jump to chat and let ChatPanel's "ask" effect answer about the selection
+    set({ selection: sel, activeTab: "chat", selectionAction: { kind: "ask", selection: sel, id: Date.now() } });
   },
   addUserHighlight: async (color = "#ffd54f") => {
     const cur = get().current;

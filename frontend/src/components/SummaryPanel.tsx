@@ -3,6 +3,9 @@ import { api, Summary } from "../api/client";
 import { useStore } from "../store";
 import { Markdown } from "./Markdown";
 
+// module-scoped cache so re-opening the tab is instant (no re-fetch/regenerate)
+const CACHE = new Map<string, Summary>();
+
 export function SummaryPanel() {
   const current = useStore((s) => s.current);
   const outputLanguage = useStore((s) => s.outputLanguage);
@@ -12,10 +15,16 @@ export function SummaryPanel() {
 
   async function load(refresh = false) {
     if (!current) return;
+    const key = `${current.id}:${outputLanguage}`;
+    if (!refresh && CACHE.has(key)) {
+      setSum(CACHE.get(key)!);
+      return;
+    }
     setLoading(true);
     setErr("");
     try {
       const s = await api.summarize(current.id, { refresh, language: outputLanguage });
+      CACHE.set(key, s);
       setSum(s);
     } catch (e: any) {
       setErr(String(e.message || e));
@@ -24,7 +33,8 @@ export function SummaryPanel() {
     }
   }
   useEffect(() => {
-    setSum(null);
+    const key = current ? `${current.id}:${outputLanguage}` : "";
+    setSum(key && CACHE.has(key) ? CACHE.get(key)! : null);
     load(false);
   }, [current?.id, outputLanguage]);
 

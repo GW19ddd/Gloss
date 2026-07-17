@@ -7,6 +7,7 @@ export function HighlightsPanel() {
   const highlights = useStore((s) => s.highlights);
   const refresh = useStore((s) => s.refreshHighlights);
   const setGoto = useStore((s) => s.setGoto);
+  const askAboutText = useStore((s) => s.askAboutText);
   const [busy, setBusy] = useState(false);
 
   async function auto() {
@@ -44,6 +45,7 @@ export function HighlightsPanel() {
             <span className="hl-page">p{h.page + 1}</span> {h.text.slice(0, 140)}
             {h.note && <em className="hl-note"> — {h.note}</em>}
           </span>
+          <button className="hl-ask" title="添加到会话" onClick={() => askAboutText(h.text)}>💬</button>
           <button className="x" onClick={() => del(h.id)}>×</button>
         </div>
       ))}
@@ -55,6 +57,7 @@ export function HighlightsPanel() {
             <span className="tag">{h.category}</span>
             <span className="hl-page">p{h.page + 1}</span> {h.text.slice(0, 140)}
           </span>
+          <button className="hl-ask" title="添加到会话" onClick={() => askAboutText(h.text)}>💬</button>
           <button className="x" onClick={() => del(h.id)}>×</button>
         </div>
       ))}

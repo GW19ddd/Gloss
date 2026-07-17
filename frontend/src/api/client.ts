@@ -84,6 +84,8 @@ export interface Summary {
 }
 export interface MindNode {
   title: string;
+  kind?: string;
+  summary?: string;
   children?: MindNode[];
 }
 export interface TransSentence {

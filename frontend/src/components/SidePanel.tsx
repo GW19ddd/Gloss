@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useStore } from "../store";
 import { SummaryPanel } from "./SummaryPanel";
 import { ExplainPanel } from "./ExplainPanel";
@@ -28,6 +29,16 @@ const TABS: [string, string][] = [
 export function SidePanel() {
   const activeTab = useStore((s) => s.activeTab);
   const setTab = useStore((s) => s.setTab);
+  const askAboutText = useStore((s) => s.askAboutText);
+  const [ask, setAsk] = useState<{ x: number; y: number; text: string } | null>(null);
+
+  function onMouseUp(e: React.MouseEvent) {
+    // don't offer "add to chat" from within the chat/settings tabs themselves
+    if (activeTab === "chat" || activeTab === "settings") return setAsk(null);
+    const text = window.getSelection()?.toString().trim() || "";
+    if (text.length < 2) return setAsk(null);
+    setAsk({ x: e.clientX, y: e.clientY, text });
+  }
 
   return (
     <div className="side-panel">
@@ -42,7 +53,7 @@ export function SidePanel() {
           </button>
         ))}
       </div>
-      <div className="tab-content">
+      <div className="tab-content" onMouseUp={onMouseUp} onMouseDown={() => setAsk(null)}>
         {activeTab === "summary" && <SummaryPanel />}
         {activeTab === "notes" && <NotesPanel />}
         {activeTab === "mindmap" && <MindMapPanel />}
@@ -55,6 +66,20 @@ export function SidePanel() {
         {activeTab === "skills" && <SkillsPanel />}
         {activeTab === "settings" && <SettingsPanel />}
       </div>
+      {ask && (
+        <button
+          className="ask-chat-pop"
+          style={{ position: "fixed", left: ask.x, top: ask.y + 10, zIndex: 40 }}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            askAboutText(ask.text);
+            window.getSelection()?.removeAllRanges();
+            setAsk(null);
+          }}
+        >
+          💬 添加到会话
+        </button>
+      )}
     </div>
   );
 }
