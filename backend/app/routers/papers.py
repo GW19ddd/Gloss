@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from ..library import importers, service, store
-from ..pdf import structure
+from ..pdf import ingest, structure
 
 router = APIRouter(prefix="/api/papers", tags=["papers"])
 
@@ -103,6 +103,19 @@ async def get_pages(paper_id: str):
         "sections": sections,
         "toc": parsed.get("toc", []),
     }
+
+
+class LocateBody(BaseModel):
+    text: str
+
+
+@router.post("/{paper_id}/locate")
+async def locate(paper_id: str, body: LocateBody):
+    """Find where a snippet appears in the PDF → {page, rects} (for click-to-highlight)."""
+    if not store.get_paper(paper_id):
+        raise HTTPException(404, "paper not found")
+    loc = await run_in_threadpool(ingest.locate_text, store.pdf_path(paper_id), body.text)
+    return loc or {"page": None, "rects": []}
 
 
 @router.get("/{paper_id}/fulltext")

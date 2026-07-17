@@ -34,6 +34,8 @@ export function PdfViewer() {
   const gotoPage = useStore((s) => s.gotoPage);
   const setGoto = useStore((s) => s.setGoto);
   const setSelection = useStore((s) => s.setSelection);
+  const flash = useStore((s) => s.flash);
+  const clearFlash = useStore((s) => s.clearFlash);
 
   const [scale, setScale] = useState(1.35);
   const [rendered, setRendered] = useState(false);
@@ -135,6 +137,13 @@ export function PdfViewer() {
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
     setGoto(null);
   }, [gotoPage]);
+
+  // Auto-clear a transient flash highlight (from click-to-locate) after a moment.
+  useEffect(() => {
+    if (!flash) return;
+    const t = setTimeout(() => clearFlash(), 1700);
+    return () => clearTimeout(t);
+  }, [flash?.id]);
 
   function onMouseUp() {
     const sel = window.getSelection();
@@ -256,6 +265,22 @@ export function PdfViewer() {
                     )),
                   )}
               </div>
+              )}
+              {flash && flash.page === i && (
+                <div className="flash-layer">
+                  {flash.rects.map((r, ri) => (
+                    <div
+                      key={ri}
+                      className="flash-rect"
+                      style={{
+                        left: r[0] * scale,
+                        top: r[1] * scale,
+                        width: (r[2] - r[0]) * scale,
+                        height: (r[3] - r[1]) * scale,
+                      }}
+                    />
+                  ))}
+                </div>
               )}
               <div className="text-layer" />
               <div className="page-num">{i + 1}</div>

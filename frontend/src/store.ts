@@ -22,6 +22,7 @@ interface State {
   providers: string[];
   provider: string;
   gotoPage: number | null;
+  flash: { page: number; rects: [number, number, number, number][]; id: number } | null;
   toast: string | null;
   selectionAction: { kind: string; selection: Selection; id: number } | null;
 
@@ -31,6 +32,8 @@ interface State {
   setTab: (t: string) => void;
   setUiLang: (l: "en" | "zh") => void;
   setScholarView: (v: { key: string | null; query: string }) => void;
+  flashLocate: (page: number, rects: [number, number, number, number][]) => void;
+  clearFlash: () => void;
   setSelection: (s: Selection | null) => void;
   refreshHighlights: () => Promise<void>;
   loadSettings: () => Promise<void>;
@@ -55,6 +58,7 @@ export const useStore = create<State>((set, get) => ({
   providers: [],
   provider: "local_claude",
   gotoPage: null,
+  flash: null,
   toast: null,
   selectionAction: null,
   scholarView: { key: null, query: "" },
@@ -78,6 +82,8 @@ export const useStore = create<State>((set, get) => ({
     set({ uiLang: l });
   },
   setScholarView: (v) => set({ scholarView: v }),
+  flashLocate: (page, rects) => set({ flash: { page, rects, id: Date.now() }, gotoPage: page }),
+  clearFlash: () => set({ flash: null }),
   setSelection: (s) => set({ selection: s }),
   refreshHighlights: async () => {
     const cur = get().current;

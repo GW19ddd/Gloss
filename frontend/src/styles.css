@@ -440,3 +440,10 @@ button.small { font-size: 12px; padding: 3px 8px; margin-top: 6px; }
 
 /* mounted-but-hidden side panels (preserve scroll / state across tab switches) */
 .tab-pane { flex: 1; min-width: 0; }
+
+/* transient flash highlight (click a translation → locate in the PDF) */
+.flash-layer { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.flash-rect { position: absolute; border-radius: 2px; background: rgba(255,213,79,0.45); box-shadow: 0 0 0 2px #ffd54f, 0 0 12px rgba(255,213,79,0.85); animation: flashpulse 1.7s ease-out; }
+@keyframes flashpulse { 0% { opacity: 0; } 12% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
+.trans-cell.clickable { cursor: pointer; }
+.trans-cell.clickable:hover { border-color: var(--accent); }

@@ -9,6 +9,7 @@ export function TranslatePanel() {
   const lang = useStore((s) => s.targetLanguage);
   const action = useStore((s) => s.selectionAction);
   const setGoto = useStore((s) => s.setGoto);
+  const flashLocate = useStore((s) => s.flashLocate);
   const uiLang = useStore((s) => s.uiLang);
   const T = {
     en: {
@@ -20,6 +21,7 @@ export function TranslatePanel() {
       showOriginal: "Show original",
       translating: (l: string) => `Translating into ${l}…`,
       page: (n: number) => `Page ${n}`,
+      locate: "Click to locate in the PDF",
       empty:
         "No page translations yet — choose a page range above. Already-translated pages are restored automatically.",
     },
@@ -32,6 +34,7 @@ export function TranslatePanel() {
       showOriginal: "显示原文",
       translating: (l: string) => `正在翻译为 ${l}…`,
       page: (n: number) => `第 ${n} 页`,
+      locate: "点击在原文 PDF 中定位",
       empty: "尚无页面翻译 — 请在上方选择页码范围。已翻译的页面会自动恢复。",
     },
   }[uiLang];
@@ -42,11 +45,11 @@ export function TranslatePanel() {
   const [loading, setLoading] = useState(false);
   const [sentences, setSentences] = useState<TransSentence[]>([]);
   const [showOriginal, setShowOriginal] = useState(false);
-  const [from, setFrom] = useState(1);
-  const [to, setTo] = useState(1);
+  // kept as strings so the inputs can be cleared / select-all-deleted freely
+  const [from, setFrom] = useState("1");
+  const [to, setTo] = useState("1");
 
   // Restore already-translated pages on entry / paper switch / language change.
-  // Uses the same `lang` as translate so the server cache key lines up.
   useEffect(() => {
     if (!current?.id) {
       setSentences([]);
@@ -83,14 +86,12 @@ export function TranslatePanel() {
 
   async function translateRange() {
     if (!current) return;
-    const start = from - 1;
-    const end = to - 1;
+    const start = (parseInt(from, 10) || 1) - 1;
+    const end = (parseInt(to, 10) || 1) - 1;
     setLoading(true);
     setOut("");
     setError("");
     try {
-      // Translate the requested range (reuses cached sentences server-side),
-      // then pull the full translated set so reused + new sentences all show in order.
       await api.translatePages(current.id, start, end, lang);
       const r = await api.getTranslations(current.id, lang);
       setSentences(r.sentences);
@@ -99,6 +100,18 @@ export function TranslatePanel() {
       setError("Error: " + (e.message || e));
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Click a translated sentence → briefly highlight the original in the PDF.
+  async function locate(s: TransSentence) {
+    if (!current) return;
+    try {
+      const loc = await api.locate(current.id, s.original);
+      if (loc.page != null && loc.rects.length) flashLocate(loc.page, loc.rects);
+      else setGoto(s.page);
+    } catch {
+      setGoto(s.page);
     }
   }
 
@@ -121,6 +134,11 @@ export function TranslatePanel() {
         <button onClick={() => translateText(text || selection?.text || "")} disabled={loading}>
           {T.translateText}
         </button>
+      </div>
+      <div className="panel-actions">
+        <button onClick={translateRange} disabled={loading}>
+          {T.translatePages}
+        </button>
         <span className="page-picker">
           {T.fromPage}{" "}
           <input
@@ -128,7 +146,7 @@ export function TranslatePanel() {
             min={1}
             max={current?.n_pages}
             value={from}
-            onChange={(e) => setFrom(parseInt(e.target.value, 10) || 1)}
+            onChange={(e) => setFrom(e.target.value)}
           />{" "}
           {T.toPage}{" "}
           <input
@@ -136,11 +154,8 @@ export function TranslatePanel() {
             min={1}
             max={current?.n_pages}
             value={to}
-            onChange={(e) => setTo(parseInt(e.target.value, 10) || 1)}
+            onChange={(e) => setTo(e.target.value)}
           />
-          <button onClick={translateRange} disabled={loading}>
-            {T.translatePages}
-          </button>
         </span>
         <label className="page-picker" style={{ cursor: "pointer" }}>
           <input
@@ -175,7 +190,7 @@ export function TranslatePanel() {
                     {T.page(s.page + 1)}
                   </div>
                 )}
-                <div className="trans-cell">
+                <div className="trans-cell clickable" title={T.locate} onClick={() => locate(s)}>
                   {showOriginal && <div className="trans-orig">{s.original}</div>}
                   <div className="trans-zh">{s.translation}</div>
                 </div>

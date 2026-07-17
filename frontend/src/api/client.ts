@@ -160,6 +160,12 @@ export const api = {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ paper_id, page_start, page_end, language }),
     }).then((r) => j<{ sentences: TransSentence[] }>(r)),
+  locate: (paper_id: string, text: string) =>
+    fetch(`/api/papers/${paper_id}/locate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text }),
+    }).then((r) => j<{ page: number | null; rects: [number, number, number, number][] }>(r)),
   getTranslations: (paper_id: string, language?: string) =>
     fetch(`/api/papers/${paper_id}/translations${language ? `?lang=${encodeURIComponent(language)}` : ""}`)
       .then((r) => j<{ sentences: TransSentence[]; pages: number[] }>(r)),
