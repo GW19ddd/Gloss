@@ -9,13 +9,18 @@
       <stop offset="1" stop-color="#7c5cff" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="beam" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#b7a4ff" stop-opacity="0.55"/>
-      <stop offset="1" stop-color="#b7a4ff" stop-opacity="0"/>
+      <stop offset="0" stop-color="#cabcff" stop-opacity="0.62"/>
+      <stop offset="1" stop-color="#cabcff" stop-opacity="0"/>
     </linearGradient>
     <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0" stop-color="#7aa2f7"/>
       <stop offset="1" stop-color="#a78bfa"/>
     </linearGradient>
+    <radialGradient id="pageglow" cx="0.4" cy="0.08" r="0.85">
+      <stop offset="0" stop-color="#fff7e6" stop-opacity="0.72"/>
+      <stop offset="0.45" stop-color="#fff3d9" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#fff3d9" stop-opacity="0"/>
+    </radialGradient>
   </defs>
 
   <rect width="1200" height="400" fill="url(#bg)"/>
@@ -40,6 +45,8 @@
       <rect x="240" y="280" width="158" height="7" rx="3.5"/>
       <rect x="240" y="298" width="112" height="7" rx="3.5"/>
     </g>
+    <!-- light landing on the front of the page -->
+    <rect x="214" y="118" width="212" height="252" rx="11" fill="url(#pageglow)"/>
     <!-- gloss in the margin -->
     <line x1="406" y1="178" x2="406" y2="224" stroke="#7aa2f7" stroke-width="3" stroke-linecap="round"/>
     <circle cx="420" cy="260" r="4.5" fill="#a78bfa"/>
@@ -52,5 +59,6 @@
   </text>
   <text x="563" y="250" font-size="23" fill="#aeb7c8">A light that annotates your papers</text>
   <text x="563" y="286" font-size="21" fill="#8a94a8">照亮论文的批注 · 本地 AI 论文阅读助手</text>
-  <text x="563" y="336" font-size="15" letter-spacing="0.5" fill="#6f7a8d">self-hosted · support claude / codex / api · PDF reader · summary · notes · mind map · chat</text>
+  <text x="563" y="330" font-size="15" letter-spacing="0.5" fill="#6f7a8d">self-hosted · support claude / codex / api</text>
+  <text x="563" y="354" font-size="15" letter-spacing="0.5" fill="#6f7a8d">PDF reader · summary · notes · mind map · chat</text>
 </svg>
