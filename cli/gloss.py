@@ -1,14 +1,14 @@
 #!/usr/bin/env python
-"""Gloss-Local CLI — a thin terminal wrapper over the same backend.
+"""Gloss (旁注) CLI — a thin terminal wrapper over the same backend.
 
 Usage:
-  moonlight serve                 # start the web app (prints URL)
-  moonlight open <pdf|arxiv|doi>  # import + serve + open browser
-  moonlight import <pdf|arxiv|doi>
-  moonlight ls                    # list library
-  moonlight summarize <id|pdf|arxiv>
-  moonlight chat <id>             # interactive terminal chat (claude-style)
-  moonlight skills                # list discovered Claude/Codex skills
+  gloss serve                 # start the web app (prints URL)
+  gloss open <pdf|arxiv|doi>  # import + serve + open browser
+  gloss import <pdf|arxiv|doi>
+  gloss ls                    # list library
+  gloss summarize <id|pdf|arxiv>
+  gloss chat <id>             # interactive terminal chat (claude-style)
+  gloss skills                # list discovered Claude/Codex skills
 """
 from __future__ import annotations
 
@@ -52,7 +52,7 @@ def _resolve_paper(idish: str) -> dict:
 def cmd_serve(args):
     import uvicorn
 
-    print(f"🌙 Gloss-Local → http://{config.HOST}:{config.PORT}")
+    print(f"💡 Gloss 旁注 → http://{config.HOST}:{config.PORT}")
     print("   (open in a browser; Ctrl-C to stop)")
     uvicorn.run("app.main:app", host=config.HOST, port=config.PORT, app_dir=str(_ROOT / "backend"))
 
@@ -120,7 +120,7 @@ def cmd_chat(args):
         if not q:
             break
         history.append({"role": "user", "content": q})
-        print("moonlight> ", end="")
+        print("gloss> ", end="")
         reply = asyncio.run(ask(history))
         history.append({"role": "assistant", "content": reply})
 
@@ -131,7 +131,7 @@ def cmd_skills(args):
 
 
 def main():
-    ap = argparse.ArgumentParser(prog="moonlight", description="Local AI paper reader")
+    ap = argparse.ArgumentParser(prog="gloss", description="Local AI paper reader")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("serve").set_defaults(fn=cmd_serve)
