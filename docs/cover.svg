@@ -52,5 +52,5 @@
   </text>
   <text x="563" y="250" font-size="23" fill="#aeb7c8">A light that annotates your papers</text>
   <text x="563" y="286" font-size="21" fill="#8a94a8">照亮论文的批注 · 本地 AI 论文阅读助手</text>
-  <text x="563" y="336" font-size="15" letter-spacing="0.5" fill="#6f7a8d">self-hosted · local claude / codex · PDF reader · summary · notes · mind map · chat</text>
+  <text x="563" y="336" font-size="15" letter-spacing="0.5" fill="#6f7a8d">self-hosted · support claude / codex / api · PDF reader · summary · notes · mind map · chat</text>
 </svg>
