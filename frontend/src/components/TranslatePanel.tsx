@@ -154,13 +154,9 @@ export function TranslatePanel() {
                     Page {s.page + 1}
                   </div>
                 )}
-                <div style={{ padding: "2px 0", fontSize: 13, lineHeight: 1.5 }}>
-                  {showOriginal && (
-                    <div className="sbs-orig" style={{ fontSize: 12, marginBottom: 2 }}>
-                      {s.original}
-                    </div>
-                  )}
-                  <div className="sbs-trans">{s.translation}</div>
+                <div className="trans-cell">
+                  {showOriginal && <div className="trans-orig">{s.original}</div>}
+                  <div className="trans-zh">{s.translation}</div>
                 </div>
               </Fragment>
             ))}

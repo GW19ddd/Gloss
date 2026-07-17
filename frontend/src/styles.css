@@ -247,3 +247,8 @@ button.small { font-size: 12px; padding: 3px 8px; margin-top: 6px; }
 .react-flow__controls-button:hover { background: var(--bg2); }
 .react-flow__attribution { display: none; }
 .react-flow__edge-path { stroke-width: 1.5; }
+
+/* translation sentence cells (one boxed cell per sentence) */
+.trans-cell { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 11px; margin: 6px 0; font-size: 13px; line-height: 1.65; }
+.trans-cell .trans-orig { color: var(--fg-dim); font-size: 12px; margin-bottom: 5px; padding-bottom: 5px; border-bottom: 1px dashed var(--border); }
+.trans-cell .trans-zh { color: var(--fg); }
