@@ -175,6 +175,9 @@ export function SettingsPanel() {
 
       <fieldset>
         <legend>anthropic API</legend>
+        <label>base_url</label>
+        <input value={cfg.providers.anthropic.base_url || ""} placeholder="https://api.anthropic.com"
+          onChange={(e) => setProv("anthropic", "base_url", e.target.value)} />
         <label>model</label>
         <input value={cfg.providers.anthropic.model}
           onChange={(e) => setProv("anthropic", "model", e.target.value)} />
