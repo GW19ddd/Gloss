@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Launcher for the Moonlight CLI (uses the project venv).
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PY="$ROOT/backend/.venv/bin/python"
+[ -x "$PY" ] || PY="python3"
+exec "$PY" "$ROOT/cli/moonlight.py" "$@"

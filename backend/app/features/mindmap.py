@@ -1,0 +1,53 @@
+"""Mind map: distill a paper into a hierarchical nested-tree concept map."""
+from __future__ import annotations
+
+from ..config import output_language
+from ..library import store
+from .common import json_complete, truncate_to_tokens
+
+SYSTEM = (
+    "You are Moonlight, an expert who distills an academic paper into a clear "
+    "mind map. The root is the paper's core topic/title. Branches are the major "
+    "aspects (e.g. Problem/Motivation, Key Idea, Method components, Experiments, "
+    "Results, Contributions, Limitations). Leaves are concrete specifics. Keep "
+    "every \"title\" SHORT (max ~8 words, no trailing period). Aim for 5-8 top "
+    "branches, 2-5 children each, depth 2-3. Do not invent facts; only use the paper."
+)
+
+SHAPE = (
+    '{"title": "root = the paper topic", '
+    '"children": [{"title": "branch", "children": [{"title": "leaf"}]}]}'
+)
+
+
+async def build_mindmap(
+    paper_id: str, *, language: str | None = None, refresh: bool = False,
+    provider: str | None = None, model: str | None = None,
+) -> dict:
+    lang = language or output_language()
+    cache_key = f"mindmap:{lang}"
+    if not refresh:
+        cached = store.cache_get(paper_id, cache_key)
+        if cached:
+            return cached
+
+    parsed = store.load_parsed(paper_id)
+    if not parsed:
+        raise ValueError("paper not parsed")
+    text = truncate_to_tokens(parsed["full_text"], 55000)
+    user = (
+        f"Build a mind map of this paper. Labels in {lang}.\n\n"
+        f"=== PAPER ===\n{text}"
+    )
+    result = await json_complete(SYSTEM, user, SHAPE, provider=provider, model=model)
+
+    # tolerate a {"tree": {...}} wrapper or a missing root title
+    if isinstance(result, dict) and "title" not in result and isinstance(result.get("tree"), dict):
+        result = result["tree"]
+    if not isinstance(result, dict) or "title" not in result:
+        title = (parsed.get("title") or "").strip() or "Mind Map"
+        children = result.get("children", []) if isinstance(result, dict) else []
+        result = {"title": title, "children": children}
+
+    store.cache_set(paper_id, cache_key, result)
+    return result

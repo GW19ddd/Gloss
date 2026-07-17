@@ -1,0 +1,14 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+# Node
+node_modules/
+frontend/dist/
+# App data (papers, uploads, db, config with keys)
+backend/data/
+# Isolated HOME for the claude CLI subprocess (symlinks to real creds)
+.claude-home/
+.claude-sandbox/
+*.log
+.DS_Store
