@@ -12,8 +12,24 @@ function refLink(r: Reference): string {
 
 export function ReferencesPanel() {
   const current = useStore((s) => s.current);
+  const uiLang = useStore((s) => s.uiLang);
   const [refs, setRefs] = useState<Reference[]>([]);
   const [busy, setBusy] = useState(false);
+
+  const T = {
+    en: {
+      resolving: "Resolving…",
+      resolve: "🔎 Resolve & enrich references",
+      refs: (n: number, r: number) => `${n} refs · ${r} resolved`,
+      empty: "No references parsed for this paper.",
+    },
+    zh: {
+      resolving: "解析中…",
+      resolve: "🔎 解析并补全参考文献",
+      refs: (n: number, r: number) => `${n} 条参考文献 · 已解析 ${r} 条`,
+      empty: "本文档未解析到参考文献。",
+    },
+  }[uiLang];
 
   async function load() {
     if (!current) return;
@@ -42,11 +58,11 @@ export function ReferencesPanel() {
     <div className="panel-body">
       <div className="panel-actions">
         <button onClick={resolve} disabled={busy}>
-          {busy ? "Resolving…" : "🔎 Resolve & enrich references"}
+          {busy ? T.resolving : T.resolve}
         </button>
-        <span className="muted">{refs.length} refs · {resolved} resolved</span>
+        <span className="muted">{T.refs(refs.length, resolved)}</span>
       </div>
-      {refs.length === 0 && <div className="muted">No references parsed for this paper.</div>}
+      {refs.length === 0 && <div className="muted">{T.empty}</div>}
       <ol className="ref-list">
         {refs.map((r) => (
           <li key={r.id}>

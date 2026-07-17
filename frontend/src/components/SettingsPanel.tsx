@@ -22,11 +22,28 @@ const CLAUDE_MODELS = ["sonnet", "opus", "haiku"];
 export function SettingsPanel() {
   const loadSettings = useStore((s) => s.loadSettings);
   const notify = useStore((s) => s.notify);
+  const uiLang = useStore((s) => s.uiLang);
+  const setUiLang = useStore((s) => s.setUiLang);
   const [cfg, setCfg] = useState<any>(null);
   const [providers, setProviders] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const T = {
+    en: {
+      testing: "Testing…",
+      testBtn: "🔌 Test connection",
+      ok: (provider: string, ms: number) => `✓ ${provider} OK (${ms}ms)`,
+      failed: (provider: string, error: string) => `✗ ${provider} failed: ${error}`,
+    },
+    zh: {
+      testing: "测试中…",
+      testBtn: "🔌 测试连通性",
+      ok: (provider: string, ms: number) => `✓ ${provider} 连通（${ms}ms）`,
+      failed: (provider: string, error: string) => `✗ ${provider} 失败：${error}`,
+    },
+  }[uiLang];
 
   useEffect(() => {
     api.getSettings().then((s) => {
@@ -68,8 +85,8 @@ export function SettingsPanel() {
       const r = await api.testProvider(cfg.provider);
       setTestResult(
         r.ok
-          ? { ok: true, text: `✓ ${r.provider} 连通（${r.latency_ms}ms）` }
-          : { ok: false, text: `✗ ${r.provider} 失败：${r.error}` },
+          ? { ok: true, text: T.ok(r.provider, r.latency_ms) }
+          : { ok: false, text: T.failed(r.provider, r.error) },
       );
     } catch (e: any) {
       setTestResult({ ok: false, text: `✗ ${String(e.message || e)}` });
@@ -80,6 +97,16 @@ export function SettingsPanel() {
 
   return (
     <div className="panel-body settings">
+      <label>Interface language / 界面语言</label>
+      <div className="seg">
+        <button className={"seg-btn" + (uiLang === "en" ? " active" : "")} onClick={() => setUiLang("en")}>
+          English
+        </button>
+        <button className={"seg-btn" + (uiLang === "zh" ? " active" : "")} onClick={() => setUiLang("zh")}>
+          中文
+        </button>
+      </div>
+
       <label>Theme / 主题</label>
       <ThemePicker />
 
@@ -94,7 +121,7 @@ export function SettingsPanel() {
       </select>
       <div className="test-conn">
         <button className="small" onClick={testConn} disabled={testing}>
-          {testing ? "测试中…" : "🔌 测试连通性"}
+          {testing ? T.testing : T.testBtn}
         </button>
         {testResult && (
           <span className={"test-result " + (testResult.ok ? "ok" : "bad")}>{testResult.text}</span>

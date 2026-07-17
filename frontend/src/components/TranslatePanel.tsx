@@ -9,6 +9,32 @@ export function TranslatePanel() {
   const lang = useStore((s) => s.targetLanguage);
   const action = useStore((s) => s.selectionAction);
   const setGoto = useStore((s) => s.setGoto);
+  const uiLang = useStore((s) => s.uiLang);
+  const T = {
+    en: {
+      placeholder: "Select text to translate, or translate whole pages sentence-by-sentence.",
+      translateText: "🌐 Translate text",
+      fromPage: "from page",
+      toPage: "to page",
+      translatePages: "Translate pages",
+      showOriginal: "Show original",
+      translating: (l: string) => `Translating into ${l}…`,
+      page: (n: number) => `Page ${n}`,
+      empty:
+        "No page translations yet — choose a page range above. Already-translated pages are restored automatically.",
+    },
+    zh: {
+      placeholder: "选中文本进行翻译，或按句翻译整页。",
+      translateText: "🌐 翻译文本",
+      fromPage: "起始页",
+      toPage: "结束页",
+      translatePages: "翻译页面",
+      showOriginal: "显示原文",
+      translating: (l: string) => `正在翻译为 ${l}…`,
+      page: (n: number) => `第 ${n} 页`,
+      empty: "尚无页面翻译 — 请在上方选择页码范围。已翻译的页面会自动恢复。",
+    },
+  }[uiLang];
 
   const [text, setText] = useState("");
   const [out, setOut] = useState("");
@@ -87,16 +113,16 @@ export function TranslatePanel() {
     <div className="panel-body">
       <textarea
         className="sel-input"
-        placeholder="Select text to translate, or translate whole pages sentence-by-sentence."
+        placeholder={T.placeholder}
         value={text || selection?.text || ""}
         onChange={(e) => setText(e.target.value)}
       />
       <div className="panel-actions">
         <button onClick={() => translateText(text || selection?.text || "")} disabled={loading}>
-          🌐 Translate text
+          {T.translateText}
         </button>
         <span className="page-picker">
-          from page{" "}
+          {T.fromPage}{" "}
           <input
             type="number"
             min={1}
@@ -104,7 +130,7 @@ export function TranslatePanel() {
             value={from}
             onChange={(e) => setFrom(parseInt(e.target.value, 10) || 1)}
           />{" "}
-          to page{" "}
+          {T.toPage}{" "}
           <input
             type="number"
             min={1}
@@ -113,7 +139,7 @@ export function TranslatePanel() {
             onChange={(e) => setTo(parseInt(e.target.value, 10) || 1)}
           />
           <button onClick={translateRange} disabled={loading}>
-            Translate pages
+            {T.translatePages}
           </button>
         </span>
         <label className="page-picker" style={{ cursor: "pointer" }}>
@@ -122,21 +148,16 @@ export function TranslatePanel() {
             checked={showOriginal}
             onChange={(e) => setShowOriginal(e.target.checked)}
           />
-          显示原文 (show original)
+          {T.showOriginal}
         </label>
       </div>
 
-      {loading && <div className="muted">Translating into {lang}…</div>}
+      {loading && <div className="muted">{T.translating(lang)}</div>}
       {error && <div className="error">{error}</div>}
       {out && <Markdown text={out} />}
 
       {sentences.length === 0
-        ? !loading && (
-            <div className="muted">
-              No page translations yet — choose a page range above. Already-translated pages are
-              restored automatically.
-            </div>
-          )
+        ? !loading && <div className="muted">{T.empty}</div>
         : (
           <div style={{ marginTop: 8 }}>
             {sentences.map((s, i) => (
@@ -151,7 +172,7 @@ export function TranslatePanel() {
                       paddingTop: 6,
                     }}
                   >
-                    Page {s.page + 1}
+                    {T.page(s.page + 1)}
                   </div>
                 )}
                 <div className="trans-cell">

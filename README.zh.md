@@ -19,7 +19,7 @@
 Gloss（旁注）是一个 **自托管、本地运行** 的科研论文阅读工具。它用一个 FastAPI 后端提供基于
 React / PDF.js 的阅读器界面，并驱动一个大模型帮你速览、研读、翻译、答疑。
 
-大模型 **默认使用你本机的 `claude` CLI**（走订阅登录，**无需 API key**，和你在终端里用 Claude 一样），
+大模型 **默认使用你本机的 `claude` CLI**，
 此外还支持本机的 `codex` CLI、Anthropic API，以及 **任意 OpenAI 兼容端点**（本地 vLLM、claude 代理等）。
 它还能 **加载并运行 Claude / Codex 技能（skills）**，直接作用在你正在读的这篇论文上。
 
@@ -70,7 +70,7 @@ GLOSS_PORT=6006 GLOSS_HOST=0.0.0.0 scripts/run.sh
 - `GLOSS_DATA_DIR` —— 数据目录（默认 `backend/data`）
 
 服务监听在 `0.0.0.0`，从别的电脑访问可用服务商的端口映射或 SSH 转发
-（如 `ssh -CNg -L 8010:127.0.0.1:8010 -p <端口> user@host`，然后打开 `http://localhost:8010`）。
+（如 `ssh -CNg -L <端口>:127.0.0.1:<端口> -p <SSH端口> user@host`，然后打开 `http://localhost:<端口>`）。
 
 > 想热重载调试用 `scripts/dev.sh`（后端 uvicorn `--reload` :8010 + Vite 开发服务器 :5173，自动代理 `/api`）。
 
@@ -150,6 +150,6 @@ Gloss 是对 **[Moonlight](https://www.themoonlight.io/)**（"陪你读论文的
 
 - **[Understand-Anything](https://github.com/Egonex-AI/Understand-Anything)** —— 交互式节点连线 **思维导图**
   （React Flow、点击聚焦、可折叠节点）的灵感来源。
-- **DeepPaperNote** —— 结构化 **研读笔记** 的灵感来源。
+- **[DeepPaperNote](https://github.com/917Dhj/DeepPaperNote)** —— 结构化 **研读笔记** 的灵感来源。
 
 衷心感谢以上三个项目的作者。🙏

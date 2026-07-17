@@ -6,6 +6,7 @@ import { Markdown } from "./Markdown";
 
 export function SkillsPanel() {
   const current = useStore((s) => s.current);
+  const uiLang = useStore((s) => s.uiLang);
   const selection = useStore((s) => s.selection);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [active, setActive] = useState<Skill | null>(null);
@@ -41,11 +42,24 @@ export function SkillsPanel() {
   const bySource: Record<string, Skill[]> = {};
   for (const s of skills) (bySource[s.source] ||= []).push(s);
 
+  const T = {
+    en: {
+      intro: "Skills discovered from Claude & Codex on this machine. Run one against the current paper.",
+      argsHint: "arguments (optional)",
+      running: "Running…",
+      run: "▶ Run skill",
+    },
+    zh: {
+      intro: "从本机的 Claude 与 Codex 发现的技能。针对当前文档运行其中之一。",
+      argsHint: "参数（可选）",
+      running: "运行中…",
+      run: "▶ 运行技能",
+    },
+  }[uiLang];
+
   return (
     <div className="panel-body">
-      <div className="muted">
-        Skills discovered from Claude &amp; Codex on this machine. Run one against the current paper.
-      </div>
+      <div className="muted">{T.intro}</div>
       {Object.entries(bySource).map(([src, list]) => (
         <div key={src}>
           <h5>{src} ({list.length})</h5>
@@ -71,11 +85,11 @@ export function SkillsPanel() {
           </div>
           <input
             className="search"
-            placeholder={active.argument_hint || "arguments (optional)"}
+            placeholder={active.argument_hint || T.argsHint}
             value={args}
             onChange={(e) => setArgs(e.target.value)}
           />
-          <button onClick={run} disabled={busy}>{busy ? "Running…" : "▶ Run skill"}</button>
+          <button onClick={run} disabled={busy}>{busy ? T.running : T.run}</button>
         </div>
       )}
       {out && <Markdown text={out} />}

@@ -4,12 +4,36 @@ import { useStore } from "../store";
 
 export function ScholarPanel() {
   const current = useStore((s) => s.current);
+  const uiLang = useStore((s) => s.uiLang);
   const notify = useStore((s) => s.notify);
   const loadPapers = useStore((s) => s.loadPapers);
   const openPaper = useStore((s) => s.openPaper);
   const [q, setQ] = useState("");
   const [results, setResults] = useState<ScholarResult[]>([]);
   const [busy, setBusy] = useState(false);
+
+  const T = {
+    en: {
+      placeholder: "Search papers (Semantic Scholar / arXiv)…",
+      search: "Search",
+      related: "✦ Related",
+      relatedTitle: "Related to this paper",
+      searching: "Searching…",
+      importAction: "＋ Import to library",
+      imported: "Imported: ",
+      importFailed: "Import failed: ",
+    },
+    zh: {
+      placeholder: "搜索论文（Semantic Scholar / arXiv）…",
+      search: "搜索",
+      related: "✦ 相关文献",
+      relatedTitle: "与本文相关",
+      searching: "搜索中…",
+      importAction: "＋ 导入到文库",
+      imported: "已导入：",
+      importFailed: "导入失败：",
+    },
+  }[uiLang];
 
   async function search() {
     if (!q.trim()) return;
@@ -36,10 +60,10 @@ export function ScholarPanel() {
     try {
       const p = await api.importPaper(query);
       await loadPapers();
-      notify("Imported: " + (p.title || "").slice(0, 40));
+      notify(T.imported + (p.title || "").slice(0, 40));
       openPaper(p.id);
     } catch (e: any) {
-      notify("Import failed: " + (e.message || e));
+      notify(T.importFailed + (e.message || e));
     }
   }
 
@@ -48,17 +72,17 @@ export function ScholarPanel() {
       <div className="panel-actions">
         <input
           className="search"
-          placeholder="Search papers (Semantic Scholar / arXiv)…"
+          placeholder={T.placeholder}
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && search()}
         />
-        <button onClick={search} disabled={busy}>Search</button>
-        <button onClick={recommend} disabled={busy || !current} title="Related to this paper">
-          ✦ Related
+        <button onClick={search} disabled={busy}>{T.search}</button>
+        <button onClick={recommend} disabled={busy || !current} title={T.relatedTitle}>
+          {T.related}
         </button>
       </div>
-      {busy && <div className="muted">Searching…</div>}
+      {busy && <div className="muted">{T.searching}</div>}
       {results.map((r, i) => (
         <div className="scholar-item" key={i}>
           <div className="ref-title">
@@ -74,7 +98,7 @@ export function ScholarPanel() {
           {r.abstract && <div className="ref-abs">{r.abstract.slice(0, 220)}…</div>}
           {(r.arxiv_id || r.url?.includes("arxiv")) && (
             <button className="small" onClick={() => importPaper(r)}>
-              ＋ Import to library
+              {T.importAction}
             </button>
           )}
         </div>

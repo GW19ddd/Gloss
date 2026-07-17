@@ -17,6 +17,7 @@ interface State {
   activeTab: string;
   targetLanguage: string;
   outputLanguage: string;
+  uiLang: "en" | "zh"; // interface-chrome language (NOT content/translation language)
   providers: string[];
   provider: string;
   gotoPage: number | null;
@@ -27,6 +28,7 @@ interface State {
   openPaper: (id: string) => Promise<void>;
   closePaper: () => void;
   setTab: (t: string) => void;
+  setUiLang: (l: "en" | "zh") => void;
   setSelection: (s: Selection | null) => void;
   refreshHighlights: () => Promise<void>;
   loadSettings: () => Promise<void>;
@@ -47,6 +49,7 @@ export const useStore = create<State>((set, get) => ({
   activeTab: "summary",
   targetLanguage: "中文 (Simplified Chinese)",
   outputLanguage: "中文 (Simplified Chinese)",
+  uiLang: (localStorage.getItem("gloss.uiLang") as "en" | "zh") || "en",
   providers: [],
   provider: "local_claude",
   gotoPage: null,
@@ -64,6 +67,10 @@ export const useStore = create<State>((set, get) => ({
   },
   closePaper: () => set({ view: "library", current: null, pages: null, highlights: [], selection: null }),
   setTab: (t) => set({ activeTab: t }),
+  setUiLang: (l) => {
+    localStorage.setItem("gloss.uiLang", l);
+    set({ uiLang: l });
+  },
   setSelection: (s) => set({ selection: s }),
   refreshHighlights: async () => {
     const cur = get().current;

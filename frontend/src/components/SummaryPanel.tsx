@@ -9,6 +9,10 @@ const CACHE = new Map<string, Summary>();
 export function SummaryPanel() {
   const current = useStore((s) => s.current);
   const outputLanguage = useStore((s) => s.outputLanguage);
+  const uiLang = useStore((s) => s.uiLang);
+  const T = uiLang === "zh"
+    ? { regenerate: "↻ 重新生成", summarizing: "生成摘要中…", reading: "正在阅读论文…" }
+    : { regenerate: "↻ Regenerate", summarizing: "Summarizing…", reading: "Reading the paper…" };
   const [sum, setSum] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -38,7 +42,7 @@ export function SummaryPanel() {
     load(false);
   }, [current?.id, outputLanguage]);
 
-  const zh = outputLanguage.startsWith("中文");
+  const zh = uiLang === "zh";
   const L = zh
     ? { tldr: "速览", problem: "问题", method: "方法", results: "结果", contributions: "创新点", key: "5 分钟速读", limits: "局限" }
     : { tldr: "TL;DR", problem: "Problem", method: "Method", results: "Results", contributions: "Contributions", key: "5-minute key points", limits: "Limitations" };
@@ -47,11 +51,11 @@ export function SummaryPanel() {
     <div className="panel-body">
       <div className="panel-actions">
         <button onClick={() => load(true)} disabled={loading}>
-          {loading ? "Summarizing…" : "↻ Regenerate"}
+          {loading ? T.summarizing : T.regenerate}
         </button>
       </div>
       {err && <div className="error">{err}</div>}
-      {loading && !sum && <div className="muted">Reading the paper…</div>}
+      {loading && !sum && <div className="muted">{T.reading}</div>}
       {sum && (
         <div className="summary">
           <h4>{L.tldr}</h4>

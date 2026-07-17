@@ -28,6 +28,7 @@ async function renderTextLayer(page: any, viewport: any, layer: HTMLDivElement) 
 
 export function PdfViewer() {
   const current = useStore((s) => s.current);
+  const uiLang = useStore((s) => s.uiLang);
   const pages = useStore((s) => s.pages);
   const highlights = useStore((s) => s.highlights);
   const gotoPage = useStore((s) => s.gotoPage);
@@ -201,7 +202,7 @@ export function PdfViewer() {
           <button onClick={() => setScale((s) => Math.min(3, s + 0.15))}>+</button>
         </div>
         <div className="pdf-disp">
-          <button className="pdf-disp-btn" title="显示设置" onClick={() => setDispOpen((o) => !o)}>
+          <button className="pdf-disp-btn" title={uiLang === "zh" ? "显示设置" : "Display settings"} onClick={() => setDispOpen((o) => !o)}>
             👁
           </button>
           {dispOpen && (
@@ -215,7 +216,7 @@ export function PdfViewer() {
                     localStorage.setItem("gloss.showHl", e.target.checked ? "1" : "0");
                   }}
                 />
-                显示批注与高亮
+                {uiLang === "zh" ? "显示批注与高亮" : "Show highlights & annotations"}
               </label>
             </div>
           )}

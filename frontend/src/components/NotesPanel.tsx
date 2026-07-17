@@ -8,6 +8,10 @@ const CACHE = new Map<string, string>();
 
 export function NotesPanel() {
   const current = useStore((s) => s.current);
+  const uiLang = useStore((s) => s.uiLang);
+  const T = uiLang === "zh"
+    ? { regenerate: "↻ 重新生成", generating: "生成笔记中…", copy: "⧉ 复制", download: "⬇ 下载 .md" }
+    : { regenerate: "↻ Regenerate", generating: "Generating notes…", copy: "⧉ Copy", download: "⬇ Download .md" };
   const [md, setMd] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -60,17 +64,17 @@ export function NotesPanel() {
     <div className="panel-body">
       <div className="panel-actions">
         <button onClick={() => load(true)} disabled={loading}>
-          {loading ? "Generating notes…" : "↻ Regenerate"}
+          {loading ? T.generating : T.regenerate}
         </button>
         <button onClick={copy} disabled={loading || !md}>
-          ⧉ Copy
+          {T.copy}
         </button>
         <button onClick={download} disabled={loading || !md}>
-          ⬇ Download .md
+          {T.download}
         </button>
       </div>
       {err && <div className="error">{err}</div>}
-      {loading && !md && <div className="muted">Generating notes…</div>}
+      {loading && !md && <div className="muted">{T.generating}</div>}
       {md && <Markdown text={md} />}
     </div>
   );

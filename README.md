@@ -20,8 +20,7 @@ Gloss (旁注) is a **self-hosted, locally-run** research-paper reader. A FastAP
 React / PDF.js reader UI and drives an LLM to help you skim, study, translate, and ask questions
 about a paper.
 
-The model **defaults to your local `claude` CLI** (signs in with your subscription — **no API key**,
-just like using Claude in your terminal). It also supports the local `codex` CLI, the Anthropic API,
+The model **defaults to your local `claude` CLI**. It also supports the local `codex` CLI, the Anthropic API,
 and **any OpenAI-compatible endpoint** (local vLLM, a claude proxy, etc.). It can even **load and run
 Claude / Codex skills** directly against the paper you're reading.
 
@@ -72,7 +71,7 @@ GLOSS_PORT=6006 GLOSS_HOST=0.0.0.0 scripts/run.sh
 - `GLOSS_DATA_DIR` — data directory (default `backend/data`)
 
 The server listens on `0.0.0.0`, so from another machine reach it via your provider's port mapping or an
-SSH tunnel (e.g. `ssh -CNg -L 8010:127.0.0.1:8010 -p <port> user@host`, then open `http://localhost:8010`).
+SSH tunnel (e.g. `ssh -CNg -L <port>:127.0.0.1:<port> -p <ssh-port> user@host`, then open `http://localhost:<port>`).
 
 > For hot-reload development use `scripts/dev.sh` (uvicorn `--reload` on :8010 + Vite dev server on :5173 proxying `/api`).
 
@@ -155,6 +154,6 @@ inspiration from two lovely projects:
 
 - **[Understand-Anything](https://github.com/Egonex-AI/Understand-Anything)** — for the interactive node-link
   **mind map** (React Flow, click-to-focus, collapsible nodes).
-- **DeepPaperNote** — for the structured, generated **study notes**.
+- **[DeepPaperNote](https://github.com/917Dhj/DeepPaperNote)** — for the structured, generated **study notes**.
 
 Huge thanks to the authors of all three. 🙏

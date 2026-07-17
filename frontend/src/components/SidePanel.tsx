@@ -12,24 +12,25 @@ import { SettingsPanel } from "./SettingsPanel";
 import { MindMapPanel } from "./MindMapPanel";
 import { NotesPanel } from "./NotesPanel";
 
-const TABS: [string, string][] = [
-  ["summary", "Summary"],
-  ["notes", "Notes"],
-  ["mindmap", "Mind Map"],
-  ["chat", "Chat"],
-  ["explain", "Explain"],
-  ["translate", "Translate"],
-  ["highlights", "Highlights"],
-  ["references", "References"],
-  ["scholar", "Scholar"],
-  ["skills", "Skills"],
-  ["settings", "Settings"],
+const TABS: { id: string; en: string; zh: string }[] = [
+  { id: "summary", en: "Summary", zh: "速览" },
+  { id: "notes", en: "Notes", zh: "笔记" },
+  { id: "mindmap", en: "Mind Map", zh: "思维导图" },
+  { id: "chat", en: "Chat", zh: "对话" },
+  { id: "explain", en: "Explain", zh: "解释" },
+  { id: "translate", en: "Translate", zh: "翻译" },
+  { id: "highlights", en: "Highlights", zh: "高亮" },
+  { id: "references", en: "References", zh: "参考文献" },
+  { id: "scholar", en: "Scholar", zh: "学术" },
+  { id: "skills", en: "Skills", zh: "技能" },
+  { id: "settings", en: "Settings", zh: "设置" },
 ];
 
 export function SidePanel() {
   const activeTab = useStore((s) => s.activeTab);
   const setTab = useStore((s) => s.setTab);
   const askAboutText = useStore((s) => s.askAboutText);
+  const uiLang = useStore((s) => s.uiLang);
   const [ask, setAsk] = useState<{ x: number; y: number; text: string } | null>(null);
 
   function onMouseUp(e: React.MouseEvent) {
@@ -43,13 +44,13 @@ export function SidePanel() {
   return (
     <div className="side-panel">
       <div className="tabs">
-        {TABS.map(([id, label]) => (
+        {TABS.map((t) => (
           <button
-            key={id}
-            className={"tab" + (activeTab === id ? " active" : "")}
-            onClick={() => setTab(id)}
+            key={t.id}
+            className={"tab" + (activeTab === t.id ? " active" : "")}
+            onClick={() => setTab(t.id)}
           >
-            {label}
+            {uiLang === "zh" ? t.zh : t.en}
           </button>
         ))}
       </div>
@@ -81,7 +82,7 @@ export function SidePanel() {
             setAsk(null);
           }}
         >
-          💬 添加到会话
+          💬 {uiLang === "zh" ? "添加到会话" : "Add to chat"}
         </button>
       )}
     </div>

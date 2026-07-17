@@ -16,8 +16,8 @@ interface Chat {
 // module-scoped so a given "ask" selection is sent exactly once, even across remounts
 let lastAskId = 0;
 
-function fmtTime(ts?: number) {
-  if (!ts) return "新会话";
+function fmtTime(ts: number | undefined, uiLang: "en" | "zh") {
+  if (!ts) return uiLang === "zh" ? "新会话" : "New";
   const d = new Date(ts * 1000);
   const p = (n: number) => String(n).padStart(2, "0");
   return `${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
@@ -25,6 +25,7 @@ function fmtTime(ts?: number) {
 
 // user message bubble — long content (e.g. a pasted equation) is collapsible
 function UserMsg({ content }: { content: string }) {
+  const uiLang = useStore((s) => s.uiLang);
   const [open, setOpen] = useState(false);
   const long = content.length > 260;
   const shown = open || !long ? content : content.slice(0, 240) + " …";
@@ -33,7 +34,7 @@ function UserMsg({ content }: { content: string }) {
       {shown}
       {long && (
         <button className="msg-more" onClick={() => setOpen((o) => !o)}>
-          {open ? "收起" : "展开全文"}
+          {open ? (uiLang === "zh" ? "收起" : "Show less") : uiLang === "zh" ? "展开全文" : "Show more"}
         </button>
       )}
     </div>
@@ -46,6 +47,30 @@ export function ChatPanel() {
   const selection = useStore((s) => s.selection);
   const provider = useStore((s) => s.provider);
   const outputLanguage = useStore((s) => s.outputLanguage);
+  const uiLang = useStore((s) => s.uiLang);
+  const T = {
+    en: {
+      sessionsTitle: "Chat sessions for this paper",
+      newTitle: "Start a new conversation",
+      newChat: "＋ New chat",
+      delTitle: "Delete this session",
+      delConfirm: "Delete this session and all its messages?",
+      empty:
+        'Ask about this paper — methods, results, limitations, or select text in the PDF / any panel and hit "Add to chat".',
+      thinking: "▍ thinking…",
+      session: (n: number, t: string) => `Session ${n} · ${t}`,
+    },
+    zh: {
+      sessionsTitle: "本论文的会话",
+      newTitle: "新建会话",
+      newChat: "＋ 新会话",
+      delTitle: "删除当前会话",
+      delConfirm: "删除当前会话及其全部消息？",
+      empty: "就这篇论文提问 — 方法、结果、局限，或在 PDF / 各面板里选中内容点“加入会话”。",
+      thinking: "▍ 思考中…",
+      session: (n: number, t: string) => `会话 ${n} · ${t}`,
+    },
+  }[uiLang];
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
   const [chatId, setChatId] = useState<string | null>(null);
@@ -123,7 +148,7 @@ export function ChatPanel() {
   }
   async function deleteCurrentChat() {
     if (!current?.id || !chatId || busy) return;
-    if (!confirm("删除当前会话及其全部消息？")) return;
+    if (!confirm(T.delConfirm)) return;
     try {
       await api.deleteChat(chatId);
       const list = (await api.listChats(current.id)).chats as Chat[];
@@ -212,27 +237,23 @@ export function ChatPanel() {
           value={chatId || ""}
           onChange={(e) => switchChat(e.target.value)}
           disabled={busy}
-          title="Chat sessions for this paper"
+          title={T.sessionsTitle}
         >
           {chats.map((c, i) => (
             <option key={c.id} value={c.id}>
-              {`会话 ${chats.length - i} · ${fmtTime(c.created_at)}`}
+              {T.session(chats.length - i, fmtTime(c.created_at, uiLang))}
             </option>
           ))}
         </select>
-        <button className="chat-new" onClick={newChat} disabled={busy} title="Start a new conversation">
-          ＋ 新会话
+        <button className="chat-new" onClick={newChat} disabled={busy} title={T.newTitle}>
+          {T.newChat}
         </button>
-        <button className="chat-del" onClick={deleteCurrentChat} disabled={busy || !chatId} title="删除当前会话">
+        <button className="chat-del" onClick={deleteCurrentChat} disabled={busy || !chatId} title={T.delTitle}>
           🗑
         </button>
       </div>
       <div className="chat-body" ref={bodyRef}>
-        {msgs.length === 0 && !streamed && (
-          <div className="muted">
-            就这篇论文提问 — 方法、结果、局限，或在 PDF / 各面板里选中内容点“加入会话”。
-          </div>
-        )}
+        {msgs.length === 0 && !streamed && <div className="muted">{T.empty}</div>}
         {msgs.map((m, i) => (
           <div key={i} className={"msg " + m.role}>
             <div className="msg-role">{m.role === "user" ? "you" : "gloss"}</div>
@@ -245,7 +266,7 @@ export function ChatPanel() {
             <Markdown text={streamed} />
           </div>
         )}
-        {busy && !streamed && <div className="muted blink">▍ thinking…</div>}
+        {busy && !streamed && <div className="muted blink">{T.thinking}</div>}
       </div>
       <div className="chat-input">
         {selection?.text && (

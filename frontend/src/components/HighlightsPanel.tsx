@@ -8,7 +8,29 @@ export function HighlightsPanel() {
   const refresh = useStore((s) => s.refreshHighlights);
   const setGoto = useStore((s) => s.setGoto);
   const askAboutText = useStore((s) => s.askAboutText);
+  const uiLang = useStore((s) => s.uiLang);
   const [busy, setBusy] = useState(false);
+
+  const T = {
+    en: {
+      analyzing: "Analyzing…",
+      auto: "✨ Auto-highlight key points",
+      empty: "No highlights yet. Auto-highlight, or select text in the PDF and pick a color.",
+      yours: "Your highlights",
+      autos: (n: number) => `Auto highlights (${n})`,
+      addToChat: "Add to chat",
+      del: "Delete highlight",
+    },
+    zh: {
+      analyzing: "分析中…",
+      auto: "✨ 自动标注要点",
+      empty: "尚无标注。可自动标注，或在 PDF 中选中文本并选择颜色。",
+      yours: "你的标注",
+      autos: (n: number) => `自动标注 (${n})`,
+      addToChat: "添加到会话",
+      del: "删除标注",
+    },
+  }[uiLang];
 
   async function auto() {
     if (!current) return;
@@ -33,11 +55,11 @@ export function HighlightsPanel() {
     <div className="panel-body">
       <div className="panel-actions">
         <button onClick={auto} disabled={busy}>
-          {busy ? "Analyzing…" : "✨ Auto-highlight key points"}
+          {busy ? T.analyzing : T.auto}
         </button>
       </div>
-      {highlights.length === 0 && <div className="muted">No highlights yet. Auto-highlight, or select text in the PDF and pick a color.</div>}
-      {user_.length > 0 && <h5>Your highlights</h5>}
+      {highlights.length === 0 && <div className="muted">{T.empty}</div>}
+      {user_.length > 0 && <h5>{T.yours}</h5>}
       {user_.map((h) => (
         <div className="hl-item" key={h.id}>
           <span className="hl-swatch" style={{ background: h.color }} />
@@ -45,11 +67,11 @@ export function HighlightsPanel() {
             <span className="hl-page">p{h.page + 1}</span> {h.text.slice(0, 140)}
             {h.note && <em className="hl-note"> — {h.note}</em>}
           </span>
-          <button className="hl-ask" title="添加到会话" onClick={() => askAboutText(h.text)}>💬</button>
-          <button className="x" onClick={() => del(h.id)}>×</button>
+          <button className="hl-ask" title={T.addToChat} onClick={() => askAboutText(h.text)}>💬</button>
+          <button className="x" title={T.del} onClick={() => del(h.id)}>×</button>
         </div>
       ))}
-      {auto_.length > 0 && <h5>Auto highlights ({auto_.length})</h5>}
+      {auto_.length > 0 && <h5>{T.autos(auto_.length)}</h5>}
       {auto_.map((h) => (
         <div className="hl-item" key={h.id}>
           <span className="hl-swatch" style={{ background: h.color }} title={h.category} />
@@ -57,8 +79,8 @@ export function HighlightsPanel() {
             <span className="tag">{h.category}</span>
             <span className="hl-page">p{h.page + 1}</span> {h.text.slice(0, 140)}
           </span>
-          <button className="hl-ask" title="添加到会话" onClick={() => askAboutText(h.text)}>💬</button>
-          <button className="x" onClick={() => del(h.id)}>×</button>
+          <button className="hl-ask" title={T.addToChat} onClick={() => askAboutText(h.text)}>💬</button>
+          <button className="x" title={T.del} onClick={() => del(h.id)}>×</button>
         </div>
       ))}
     </div>

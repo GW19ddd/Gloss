@@ -295,6 +295,38 @@ function layout(flat: Flat, collapsed: Set<string>): { nodes: Node[]; edges: Edg
 // ---------------------------------------------------------------------------
 export function MindMapPanel() {
   const current = useStore((s) => s.current);
+  const uiLang = useStore((s) => s.uiLang);
+  const T = uiLang === "zh"
+    ? {
+        regenerate: "↻ 重新生成",
+        mapping: "生成中…",
+        updating: "更新中…",
+        openPrompt: "打开一篇论文以查看其概念图。",
+        building: "正在生成概念图…",
+        none: "尚无概念图。",
+        empty: "本论文的概念图为空。",
+        truncated: (n: number) => `仅显示前 ${n} 个节点。`,
+        clearFocus: "点击空白处取消聚焦。",
+        close: "关闭",
+        connections: "关联",
+        parent: "父节点",
+        children: (n: number) => `子节点 (${n})`,
+      }
+    : {
+        regenerate: "↻ Regenerate",
+        mapping: "Mapping…",
+        updating: "Updating…",
+        openPrompt: "Open a paper to see its concept map.",
+        building: "Building the concept map…",
+        none: "No concept map yet.",
+        empty: "This paper has an empty concept map.",
+        truncated: (n: number) => `Showing the first ${n} nodes.`,
+        clearFocus: "Click empty space to clear focus.",
+        close: "Close",
+        connections: "Connections",
+        parent: "Parent",
+        children: (n: number) => `Children (${n})`,
+      };
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [tree, setTree] = useState<MindNode | null>(null);
@@ -417,19 +449,19 @@ export function MindMapPanel() {
   if (!current) {
     body = (
       <div className="muted" style={{ flex: 1, padding: 16 }}>
-        Open a paper to see its concept map.
+        {T.openPrompt}
       </div>
     );
   } else if (!tree) {
     body = (
       <div className="muted" style={{ flex: 1, padding: 16 }}>
-        {loading ? "Building the concept map…" : "No concept map yet."}
+        {loading ? T.building : T.none}
       </div>
     );
   } else if (!flat.rootId) {
     body = (
       <div className="muted" style={{ flex: 1, padding: 16 }}>
-        This paper has an empty concept map.
+        {T.empty}
       </div>
     );
   } else {
@@ -527,7 +559,7 @@ export function MindMapPanel() {
           >
             <button
               onClick={clearFocus}
-              title="Close"
+              title={T.close}
               style={{
                 position: "absolute",
                 top: 8,
@@ -597,12 +629,12 @@ export function MindMapPanel() {
                     marginBottom: 6,
                   }}
                 >
-                  Connections
+                  {T.connections}
                 </div>
                 {parent && (
                   <>
                     <div style={{ fontSize: 10, color: "var(--fg-dim)", margin: "6px 0 3px" }}>
-                      Parent
+                      {T.parent}
                     </div>
                     {connRow(parent)}
                   </>
@@ -610,7 +642,7 @@ export function MindMapPanel() {
                 {children.length > 0 && (
                   <>
                     <div style={{ fontSize: 10, color: "var(--fg-dim)", margin: "8px 0 3px" }}>
-                      Children ({children.length})
+                      {T.children(children.length)}
                     </div>
                     {children.map((c) => connRow(c))}
                   </>
@@ -633,17 +665,17 @@ export function MindMapPanel() {
         style={{ padding: "8px 12px", display: "flex", alignItems: "center", gap: 10 }}
       >
         <button onClick={() => load(true)} disabled={loading || !current}>
-          {loading ? "Mapping…" : "↻ Regenerate"}
+          {loading ? T.mapping : T.regenerate}
         </button>
-        {loading && tree && <span className="muted">Updating…</span>}
+        {loading && tree && <span className="muted">{T.updating}</span>}
         {flat.truncated && (
           <span className="muted" style={{ fontSize: 11 }}>
-            Showing the first {MAX_NODES} nodes.
+            {T.truncated(MAX_NODES)}
           </span>
         )}
         {focusedId && (
           <span className="muted" style={{ fontSize: 11 }}>
-            Click empty space to clear focus.
+            {T.clearFocus}
           </span>
         )}
       </div>

@@ -15,6 +15,7 @@ export default function App() {
   const provider = useStore((s) => s.provider);
   const toast = useStore((s) => s.toast);
   const notify = useStore((s) => s.notify);
+  const uiLang = useStore((s) => s.uiLang);
 
   const clampWidth = (w: number) => Math.min(900, Math.max(320, w));
   const [sideWidth, setSideWidth] = useState(() =>
@@ -93,11 +94,11 @@ export default function App() {
         </div>
         {current && (
           <div className="crumbs">
-            <button className="link" onClick={closePaper}>← Library</button>
+            <button className="link" onClick={closePaper}>{uiLang === "zh" ? "← 论文库" : "← Library"}</button>
           </div>
         )}
         <div className="spacer" />
-        <div className="provider-badge" title="Active AI provider">⚡ {provider}</div>
+        <div className="provider-badge" title={uiLang === "zh" ? "当前 AI 提供方" : "Active AI provider"}>⚡ {provider}</div>
       </header>
 
       {view === "library" ? (
@@ -105,7 +106,7 @@ export default function App() {
       ) : (
         <div className="reader">
           {outlineCollapsed ? (
-            <button className="outline-expand" title="Show outline" onClick={() => setOutlineCollapsed(false)}>
+            <button className="outline-expand" title={uiLang === "zh" ? "显示大纲" : "Show outline"} onClick={() => setOutlineCollapsed(false)}>
               »
             </button>
           ) : (

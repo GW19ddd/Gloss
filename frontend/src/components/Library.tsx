@@ -8,6 +8,29 @@ export function Library() {
   const openPaper = useStore((s) => s.openPaper);
   const loadPapers = useStore((s) => s.loadPapers);
   const notify = useStore((s) => s.notify);
+  const uiLang = useStore((s) => s.uiLang);
+  const T = {
+    en: {
+      tagline: "Annotate your papers with light · a local AI paper-reading companion, powered by your local Claude.",
+      placeholder: "arXiv id / URL / DOI  (e.g. 1706.03762)",
+      import: "Import",
+      upload: "Upload PDF",
+      working: "Working…",
+      empty: "No papers yet — import an arXiv id or upload a PDF.",
+      confirmDelete: "Delete this paper?",
+      pages: (n: number) => `${n}p`,
+    },
+    zh: {
+      tagline: "照亮论文的批注 · 本地 AI 论文阅读助手，默认接入本地 Claude。",
+      placeholder: "arXiv 编号 / 链接 / DOI  (例如 1706.03762)",
+      import: "导入",
+      upload: "上传 PDF",
+      working: "处理中…",
+      empty: "还没有论文 — 导入 arXiv 编号或上传 PDF。",
+      confirmDelete: "删除这篇论文？",
+      pages: (n: number) => `${n} 页`,
+    },
+  }[uiLang];
   const [importQ, setImportQ] = useState("");
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -46,7 +69,7 @@ export function Library() {
 
   async function del(id: string, e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm("Delete this paper?")) return;
+    if (!confirm(T.confirmDelete)) return;
     await api.deletePaper(id);
     await loadPapers();
   }
@@ -55,17 +78,17 @@ export function Library() {
     <div className="library">
       <div className="lib-hero">
         <h1 className="hero-title"><Logo size={40} /> Gloss <span className="hero-zh">旁注</span></h1>
-        <p className="tagline">照亮论文的批注 · 本地 AI 论文阅读助手，默认接入本地 Claude。</p>
+        <p className="tagline">{T.tagline}</p>
         <div className="import-row">
           <input
             className="import-input"
-            placeholder="arXiv id / URL / DOI  (e.g. 1706.03762)"
+            placeholder={T.placeholder}
             value={importQ}
             onChange={(e) => setImportQ(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && onImport()}
           />
-          <button onClick={onImport} disabled={busy}>Import</button>
-          <button onClick={() => fileRef.current?.click()} disabled={busy}>Upload PDF</button>
+          <button onClick={onImport} disabled={busy}>{T.import}</button>
+          <button onClick={() => fileRef.current?.click()} disabled={busy}>{T.upload}</button>
           <input
             ref={fileRef}
             type="file"
@@ -75,17 +98,17 @@ export function Library() {
             onChange={(e) => onUpload(e.target.files)}
           />
         </div>
-        {busy && <div className="muted">Working…</div>}
+        {busy && <div className="muted">{T.working}</div>}
       </div>
 
       <div className="lib-grid">
-        {papers.length === 0 && <div className="muted empty">No papers yet — import an arXiv id or upload a PDF.</div>}
+        {papers.length === 0 && <div className="muted empty">{T.empty}</div>}
         {papers.map((p) => (
           <div className="card" key={p.id} onClick={() => openPaper(p.id)}>
             <div className="card-title">{p.title || "Untitled"}</div>
             <div className="card-auth">{(p.authors || []).slice(0, 4).join(", ")}</div>
             <div className="card-meta">
-              <span>{p.n_pages}p</span>
+              <span>{T.pages(p.n_pages)}</span>
               {p.year && <span>· {p.year}</span>}
               {p.source && <span>· {p.source}</span>}
             </div>
