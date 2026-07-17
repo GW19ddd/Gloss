@@ -113,29 +113,40 @@ async def translate(body: TranslateBody):
     if body.paper_id and body.page_start is not None:
         end = body.page_end if body.page_end is not None else body.page_start
         try:
-            blocks = await translate_feat.translate_range(
+            sents = await translate_feat.translate_range(
                 body.paper_id, body.page_start, end, language=body.language,
                 provider=body.provider, model=body.model,
             )
         except ValueError as e:
             raise HTTPException(400, str(e))
-        return {"blocks": blocks}
+        return {"sentences": sents}
     # single page
     if body.paper_id and body.page is not None:
         try:
-            blocks = await translate_feat.translate_page(
+            sents = await translate_feat.translate_page(
                 body.paper_id, body.page, language=body.language,
                 provider=body.provider, model=body.model,
             )
         except ValueError as e:
             raise HTTPException(400, str(e))
-        return {"blocks": blocks}
+        return {"sentences": sents}
     if body.text:
         out = await translate_feat.translate_text(
             body.text, language=body.language, provider=body.provider, model=body.model
         )
         return {"translation": out}
     raise HTTPException(400, "provide text, or paper_id + page")
+
+
+@router.get("/papers/{paper_id}/translations")
+async def get_translations(paper_id: str, lang: str | None = None):
+    if not store.get_paper(paper_id):
+        raise HTTPException(404, "paper not found")
+    sents = translate_feat.get_translations(paper_id, language=lang)
+    return {
+        "sentences": sents,
+        "pages": sorted({s["page"] for s in sents}),
+    }
 
 
 @router.post("/papers/{paper_id}/autohighlight")

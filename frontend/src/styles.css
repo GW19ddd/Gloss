@@ -79,8 +79,13 @@ a:hover { text-decoration: underline; }
 .divider:hover { background: var(--accent); }
 .side-host { height: 100%; }
 
-.outline { flex: 0 0 190px; border-right: 1px solid var(--border); background: var(--panel); overflow-y: auto; }
-.outline-head { padding: 10px 12px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-dim); position: sticky; top: 0; background: var(--panel); }
+.outline-host { flex: 0 0 auto; height: 100%; }
+.outline { width: 100%; height: 100%; border-right: 1px solid var(--border); background: var(--panel); overflow-y: auto; }
+.outline-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-dim); position: sticky; top: 0; background: var(--panel); }
+.outline-collapse { background: none; border: none; color: var(--fg-dim); font-size: 15px; line-height: 1; padding: 0 2px; }
+.outline-collapse:hover { color: var(--accent); }
+.outline-expand { flex: 0 0 18px; height: 100%; background: var(--panel); border: none; border-right: 1px solid var(--border); color: var(--fg-dim); cursor: pointer; font-size: 13px; }
+.outline-expand:hover { color: var(--accent); background: var(--bg2); }
 .outline-item { padding: 5px 12px; font-size: 12.5px; color: var(--fg-dim); cursor: pointer; border-left: 2px solid transparent; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .outline-item:hover { color: var(--fg); border-left-color: var(--accent); background: var(--bg2); }
 
@@ -225,3 +230,20 @@ button.small { font-size: 12px; padding: 3px 8px; margin-top: 6px; }
 
 /* advanced settings header */
 .adv-head { margin: 16px 0 4px; font-size: 12px; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.05em; border-top: 1px solid var(--border); padding-top: 12px; }
+
+/* dark scrollbars (PDF area + panels) matching the background */
+.pdf-scroll::-webkit-scrollbar, .panel-body::-webkit-scrollbar, .chat-body::-webkit-scrollbar, .outline::-webkit-scrollbar { width: 12px; height: 12px; }
+.pdf-scroll::-webkit-scrollbar-track { background: #0a0c10; }
+.pdf-scroll::-webkit-scrollbar-thumb { background: #1c2230; border-radius: 6px; border: 3px solid #0a0c10; }
+.pdf-scroll::-webkit-scrollbar-thumb:hover { background: #2a3446; }
+.panel-body::-webkit-scrollbar-track, .chat-body::-webkit-scrollbar-track, .outline::-webkit-scrollbar-track { background: var(--panel); }
+.panel-body::-webkit-scrollbar-thumb, .chat-body::-webkit-scrollbar-thumb, .outline::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 6px; border: 3px solid var(--panel); }
+.pdf-scroll, .panel-body, .chat-body, .outline { scrollbar-width: thin; scrollbar-color: #1c2230 #0a0c10; }
+
+/* React Flow dark theme (mind map) */
+.react-flow { background: #0a0c10; }
+.react-flow__minimap { border: 1px solid var(--border); border-radius: 6px; }
+.react-flow__controls-button { background: var(--bg3); border-bottom: 1px solid var(--border); color: var(--fg); fill: var(--fg); }
+.react-flow__controls-button:hover { background: var(--bg2); }
+.react-flow__attribution { display: none; }
+.react-flow__edge-path { stroke-width: 1.5; }

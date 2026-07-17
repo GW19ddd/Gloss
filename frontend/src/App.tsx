@@ -21,6 +21,14 @@ export default function App() {
   );
   const dragging = useRef(false);
 
+  const clampOutline = (w: number) => Math.min(420, Math.max(120, w));
+  const [outlineWidth, setOutlineWidth] = useState(() =>
+    clampOutline(Number(localStorage.getItem("moonlight.outlineWidth")) || 190)
+  );
+  const [outlineCollapsed, setOutlineCollapsed] = useState(
+    () => localStorage.getItem("moonlight.outlineCollapsed") === "1"
+  );
+
   useEffect(() => {
     loadPapers();
     loadSettings();
@@ -29,6 +37,12 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("moonlight.sideWidth", String(sideWidth));
   }, [sideWidth]);
+  useEffect(() => {
+    localStorage.setItem("moonlight.outlineWidth", String(outlineWidth));
+  }, [outlineWidth]);
+  useEffect(() => {
+    localStorage.setItem("moonlight.outlineCollapsed", outlineCollapsed ? "1" : "0");
+  }, [outlineCollapsed]);
 
   useEffect(() => {
     if (!toast) return;
@@ -45,6 +59,18 @@ export default function App() {
     };
     const onUp = () => {
       dragging.current = false;
+      document.body.style.userSelect = "";
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  const startOutlineDrag = () => {
+    document.body.style.userSelect = "none";
+    const onMove = (e: MouseEvent) => setOutlineWidth(clampOutline(e.clientX));
+    const onUp = () => {
       document.body.style.userSelect = "";
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
@@ -72,7 +98,18 @@ export default function App() {
         <Library />
       ) : (
         <div className="reader">
-          <Outline />
+          {outlineCollapsed ? (
+            <button className="outline-expand" title="Show outline" onClick={() => setOutlineCollapsed(false)}>
+              »
+            </button>
+          ) : (
+            <>
+              <div className="outline-host" style={{ width: outlineWidth }}>
+                <Outline onCollapse={() => setOutlineCollapsed(true)} />
+              </div>
+              <div className="divider" onMouseDown={startOutlineDrag} />
+            </>
+          )}
           <PdfViewer />
           <div className="divider" onMouseDown={startDrag} />
           <div className="side-host" style={{ width: sideWidth, flex: "0 0 auto", display: "flex" }}>

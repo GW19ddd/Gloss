@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
-import { api } from "../api/client";
+import { api, TransSentence } from "../api/client";
 import { useStore } from "../store";
 import { Markdown } from "./Markdown";
 
@@ -12,21 +12,44 @@ export function TranslatePanel() {
 
   const [text, setText] = useState("");
   const [out, setOut] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [pageBlocks, setPageBlocks] = useState<any[] | null>(null);
+  const [sentences, setSentences] = useState<TransSentence[]>([]);
+  const [showOriginal, setShowOriginal] = useState(false);
   const [from, setFrom] = useState(1);
   const [to, setTo] = useState(1);
+
+  // Restore already-translated pages on entry / paper switch / language change.
+  // Uses the same `lang` as translate so the server cache key lines up.
+  useEffect(() => {
+    if (!current?.id) {
+      setSentences([]);
+      return;
+    }
+    let cancelled = false;
+    api
+      .getTranslations(current.id, lang)
+      .then((r) => {
+        if (!cancelled) setSentences(r.sentences);
+      })
+      .catch(() => {
+        if (!cancelled) setSentences([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [current?.id, lang]);
 
   async function translateText(t: string) {
     if (!t.trim()) return;
     setLoading(true);
     setOut("");
-    setPageBlocks(null);
+    setError("");
     try {
       const r = await api.translateText(t, lang);
       setOut(r.translation);
     } catch (e: any) {
-      setOut("Error: " + (e.message || e));
+      setError("Error: " + (e.message || e));
     } finally {
       setLoading(false);
     }
@@ -38,13 +61,16 @@ export function TranslatePanel() {
     const end = to - 1;
     setLoading(true);
     setOut("");
-    setPageBlocks(null);
+    setError("");
     try {
-      const r = await api.translatePages(current.id, start, end, lang);
-      setPageBlocks(r.blocks);
+      // Translate the requested range (reuses cached sentences server-side),
+      // then pull the full translated set so reused + new sentences all show in order.
+      await api.translatePages(current.id, start, end, lang);
+      const r = await api.getTranslations(current.id, lang);
+      setSentences(r.sentences);
       setGoto(start);
     } catch (e: any) {
-      setOut("Error: " + (e.message || e));
+      setError("Error: " + (e.message || e));
     } finally {
       setLoading(false);
     }
@@ -61,7 +87,7 @@ export function TranslatePanel() {
     <div className="panel-body">
       <textarea
         className="sel-input"
-        placeholder="Select text to translate, or translate a whole page side-by-side."
+        placeholder="Select text to translate, or translate whole pages sentence-by-sentence."
         value={text || selection?.text || ""}
         onChange={(e) => setText(e.target.value)}
       />
@@ -90,26 +116,56 @@ export function TranslatePanel() {
             Translate pages
           </button>
         </span>
+        <label className="page-picker" style={{ cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={showOriginal}
+            onChange={(e) => setShowOriginal(e.target.checked)}
+          />
+          显示原文 (show original)
+        </label>
       </div>
+
       {loading && <div className="muted">Translating into {lang}…</div>}
+      {error && <div className="error">{error}</div>}
       {out && <Markdown text={out} />}
-      {pageBlocks && (
-        <div className="sidebyside">
-          {pageBlocks.map((b, i) => (
-            <Fragment key={i}>
-              {(i === 0 || b.page !== pageBlocks[i - 1].page) && (
-                <div className="sbs-page" style={{ color: "var(--fg-dim)", fontSize: 11, margin: "8px 0 4px" }}>
-                  Page {b.page + 1}
+
+      {sentences.length === 0
+        ? !loading && (
+            <div className="muted">
+              No page translations yet — choose a page range above. Already-translated pages are
+              restored automatically.
+            </div>
+          )
+        : (
+          <div style={{ marginTop: 8 }}>
+            {sentences.map((s, i) => (
+              <Fragment key={i}>
+                {(i === 0 || s.page !== sentences[i - 1].page) && (
+                  <div
+                    style={{
+                      color: "var(--fg-dim)",
+                      fontSize: 11,
+                      margin: "10px 0 4px",
+                      borderTop: "1px solid var(--border)",
+                      paddingTop: 6,
+                    }}
+                  >
+                    Page {s.page + 1}
+                  </div>
+                )}
+                <div style={{ padding: "2px 0", fontSize: 13, lineHeight: 1.5 }}>
+                  {showOriginal && (
+                    <div className="sbs-orig" style={{ fontSize: 12, marginBottom: 2 }}>
+                      {s.original}
+                    </div>
+                  )}
+                  <div className="sbs-trans">{s.translation}</div>
                 </div>
-              )}
-              <div className="sbs-row">
-                <div className="sbs-orig">{b.original}</div>
-                <div className="sbs-trans">{b.translation}</div>
-              </div>
-            </Fragment>
-          ))}
-        </div>
-      )}
+              </Fragment>
+            ))}
+          </div>
+        )}
     </div>
   );
 }

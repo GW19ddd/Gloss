@@ -1,0 +1,4 @@
+# Extra dependencies to run the black-box test suite.
+# The app itself (and TestClient's httpx transport + PyMuPDF used to synthesise
+# a sample PDF) come from backend/requirements.txt, which must be installed too.
+pytest==8.3.4

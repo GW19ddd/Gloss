@@ -86,6 +86,11 @@ export interface MindNode {
   title: string;
   children?: MindNode[];
 }
+export interface TransSentence {
+  page: number;
+  original: string;
+  translation: string;
+}
 export interface ScholarResult {
   title: string;
   abstract: string;
@@ -147,18 +152,15 @@ export const api = {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ text, language }),
     }).then((r) => j<{ translation: string }>(r)),
-  translatePage: (paper_id: string, page: number, language?: string) =>
-    fetch("/api/translate", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ paper_id, page, language }),
-    }).then((r) => j<{ blocks: any[] }>(r)),
   translatePages: (paper_id: string, page_start: number, page_end: number, language?: string) =>
     fetch("/api/translate", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ paper_id, page_start, page_end, language }),
-    }).then((r) => j<{ blocks: any[] }>(r)),
+    }).then((r) => j<{ sentences: TransSentence[] }>(r)),
+  getTranslations: (paper_id: string, language?: string) =>
+    fetch(`/api/papers/${paper_id}/translations${language ? `?lang=${encodeURIComponent(language)}` : ""}`)
+      .then((r) => j<{ sentences: TransSentence[]; pages: number[] }>(r)),
 
   autohighlight: (id: string) =>
     fetch(`/api/papers/${id}/autohighlight`, {
