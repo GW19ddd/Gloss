@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Gloss-Local — a self-hosted clone of Gloss (themoonlight.io), an "AI colleague for
+Gloss (旁注) — a self-hosted clone of Moonlight (themoonlight.io), an "AI colleague for
 reading research papers". A FastAPI backend serves a React/PDF.js reader UI and drives an LLM that
 defaults to the **local `claude` CLI** (subscription auth, no API key) but can also use any
 Anthropic or OpenAI-compatible endpoint. It can also load and run Claude/Codex **skills** against
