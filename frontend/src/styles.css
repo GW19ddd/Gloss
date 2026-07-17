@@ -243,8 +243,11 @@ button.small { font-size: 12px; padding: 3px 8px; margin-top: 6px; }
 /* React Flow dark theme (mind map) */
 .react-flow { background: #0a0c10; }
 .react-flow__minimap { border: 1px solid var(--border); border-radius: 6px; }
-.react-flow__controls-button { background: var(--bg3); border-bottom: 1px solid var(--border); color: var(--fg); fill: var(--fg); }
+.react-flow__controls { box-shadow: 0 4px 16px rgba(0,0,0,0.45); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.react-flow__controls-button { background: var(--bg3); border-bottom: 1px solid var(--border); }
 .react-flow__controls-button:hover { background: var(--bg2); }
+.react-flow__controls-button svg, .react-flow__controls-button svg path, .react-flow__controls-button svg polyline { fill: var(--fg-dim) !important; }
+.react-flow__controls-button:hover svg, .react-flow__controls-button:hover svg path { fill: var(--fg) !important; }
 .react-flow__attribution { display: none; }
 .react-flow__edge-path { stroke-width: 1.5; }
 
