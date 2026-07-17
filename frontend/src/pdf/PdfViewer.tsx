@@ -1,14 +1,27 @@
 import { useEffect, useRef, useState } from "react";
-import { pdfjsLib } from "./pdfSetup";
+import { pdfjsLib, TextLayer } from "./pdfSetup";
 import { api } from "../api/client";
 import { useStore } from "../store";
 import { SelectionPopover } from "../components/SelectionPopover";
 
-// Manual text layer: position spans from text items so the browser can select
-// them. Selection → PDF-point rects is then derived from client rects / scale.
+// Use PDF.js's OFFICIAL text layer (v4 `TextLayer`) rather than a hand-rolled one,
+// so selection matches a real browser PDF viewer — this uses the PDF's embedded
+// text (not OCR); it's just rendered/positioned by pdf.js's own builder.
 async function renderTextLayer(page: any, viewport: any, layer: HTMLDivElement) {
-  const tc = await page.getTextContent();
   layer.innerHTML = "";
+  // v4 positions spans relative to this CSS variable
+  layer.style.setProperty("--scale-factor", String(viewport.scale));
+  if (TextLayer) {
+    const tl = new TextLayer({
+      textContentSource: page.streamTextContent({ includeMarkedContent: true }),
+      container: layer,
+      viewport,
+    });
+    await tl.render();
+    return;
+  }
+  // fallback (older pdf.js): manual span positioning
+  const tc = await page.getTextContent();
   const frag = document.createDocumentFragment();
   for (const item of tc.items as any[]) {
     if (!item.str) continue;
@@ -19,8 +32,6 @@ async function renderTextLayer(page: any, viewport: any, layer: HTMLDivElement) 
     span.style.left = `${tx[4]}px`;
     span.style.top = `${tx[5] - fontSize}px`;
     span.style.fontSize = `${fontSize}px`;
-    span.style.height = `${fontSize}px`;
-    span.style.transform = `scaleX(${item.width && item.str.length ? (item.width * viewport.scale) / (fontSize * 0.5 * item.str.length) : 1})`;
     frag.appendChild(span);
   }
   layer.appendChild(frag);
@@ -108,7 +119,7 @@ export function PdfViewer() {
         if (!it || !holder) continue;
         const { page, vp } = it;
         const canvas = holder.querySelector("canvas") as HTMLCanvasElement;
-        const textLayer = holder.querySelector(".text-layer") as HTMLDivElement;
+        const textLayer = holder.querySelector(".textLayer") as HTMLDivElement;
         const rvp = page.getViewport({ scale: scale * quality });
         canvas.width = Math.floor(rvp.width);
         canvas.height = Math.floor(rvp.height);
@@ -282,7 +293,7 @@ export function PdfViewer() {
                   ))}
                 </div>
               )}
-              <div className="text-layer" />
+              <div className="textLayer" />
               <div className="page-num">{i + 1}</div>
             </div>
           );
