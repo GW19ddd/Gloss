@@ -1,9 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
-import { api, TransSentence } from "../api/client";
+import { api, TexSection, TransSentence } from "../api/client";
 import { useStore } from "../store";
 import { Markdown } from "./Markdown";
-
-type Unit = { original: string; translation: string };
 
 export function TranslatePanel() {
   const current = useStore((s) => s.current);
@@ -28,8 +26,10 @@ export function TranslatePanel() {
       empty: "No page translations yet — choose a page range above. Already-translated pages are restored automatically.",
       modePdf: "PDF pages",
       modeTex: "LaTeX source",
-      translateSource: "Translate full LaTeX source",
-      texEmpty: "Translate the arXiv LaTeX source to get the complete text (nothing missed by PDF extraction).",
+      translateAll: "Translate all sections",
+      translateSec: "Translate",
+      retranslate: "Re-translate",
+      texEmpty: "Loading LaTeX sections…  translate a section (e.g. Abstract, Results) or all — this uses the exact source so nothing is missed.",
     },
     zh: {
       placeholder: "选中文本进行翻译，或按句翻译整页。",
@@ -44,8 +44,10 @@ export function TranslatePanel() {
       empty: "尚无页面翻译 — 请在上方选择页码范围。已翻译的页面会自动恢复。",
       modePdf: "PDF 分页",
       modeTex: "LaTeX 全文",
-      translateSource: "翻译 LaTeX 全文源",
-      texEmpty: "翻译 arXiv 的 LaTeX 源，可得到完整文本（不会被 PDF 提取漏掉）。",
+      translateAll: "翻译全部章节",
+      translateSec: "翻译本节",
+      retranslate: "重新翻译",
+      texEmpty: "正在载入 LaTeX 章节…  可按节翻译（如 Abstract、Results）或翻译全部 — 使用精确源，不漏文本。",
     },
   }[uiLang];
 
@@ -55,7 +57,8 @@ export function TranslatePanel() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [sentences, setSentences] = useState<TransSentence[]>([]);
-  const [texUnits, setTexUnits] = useState<Unit[]>([]);
+  const [texSections, setTexSections] = useState<TexSection[]>([]);
+  const [secBusy, setSecBusy] = useState<number | null>(null); // -2 = all, i = section
   const [showOriginal, setShowOriginal] = useState(false);
   const [from, setFrom] = useState("1");
   const [to, setTo] = useState("1");
@@ -70,11 +73,11 @@ export function TranslatePanel() {
     };
   }, [current?.id, lang]);
 
-  // restore LaTeX-source translations
+  // load LaTeX sections (with any cached translations) — no LLM until you click
   useEffect(() => {
-    if (!current?.id || !isArxiv) return setTexUnits([]);
+    if (!current?.id || !isArxiv) return setTexSections([]);
     let cancelled = false;
-    api.getTexTranslations(current.id, lang).then((r) => !cancelled && setTexUnits(r.units)).catch(() => {});
+    api.getTexSections(current.id, lang).then((r) => !cancelled && setTexSections(r.sections)).catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -114,17 +117,17 @@ export function TranslatePanel() {
     }
   }
 
-  async function translateSource() {
-    if (!current) return;
-    setLoading(true);
+  async function translateSection(section: number | null) {
+    if (!current || secBusy !== null) return;
+    setSecBusy(section === null ? -2 : section);
     setError("");
     try {
-      const r = await api.translateTex(current.id, lang);
-      setTexUnits(r.units);
+      const r = await api.translateTex(current.id, section, lang);
+      setTexSections(r.sections);
     } catch (e: any) {
       setError("Error: " + (e.message || e));
     } finally {
-      setLoading(false);
+      setSecBusy(null);
     }
   }
 
@@ -189,8 +192,8 @@ export function TranslatePanel() {
 
       {mode === "tex" && (
         <div className="panel-actions">
-          <button onClick={translateSource} disabled={loading}>
-            {T.translateSource}
+          <button onClick={() => translateSection(null)} disabled={secBusy !== null}>
+            {secBusy === -2 ? T.translating(lang) : T.translateAll}
           </button>
         </div>
       )}
@@ -226,14 +229,28 @@ export function TranslatePanel() {
           ))}
 
       {mode === "tex" &&
-        (texUnits.length === 0
-          ? !loading && <div className="muted">{T.texEmpty}</div>
+        (texSections.length === 0
+          ? <div className="muted">{T.texEmpty}</div>
           : (
-            <div style={{ marginTop: 8 }}>
-              {texUnits.map((u, i) => (
-                <div key={i} className="trans-cell clickable" title={T.locate} onClick={() => locate(u.original)}>
-                  {showOriginal && <div className="trans-orig">{u.original}</div>}
-                  <div className="trans-zh">{u.translation}</div>
+            <div style={{ marginTop: 4 }}>
+              {texSections.map((sec, i) => (
+                <div key={i} className="tex-section">
+                  <div className="tex-sec-head">
+                    <span className="tex-sec-title">
+                      {sec.title} <span className="muted" style={{ fontWeight: 400 }}>{sec.done}/{sec.count}</span>
+                    </span>
+                    <button className="small" onClick={() => translateSection(i)} disabled={secBusy !== null}>
+                      {secBusy === i ? "…" : sec.done >= sec.count ? T.retranslate : T.translateSec}
+                    </button>
+                  </div>
+                  {sec.units.map((u, j) =>
+                    u.translation || showOriginal ? (
+                      <div key={j} className="trans-cell clickable" title={T.locate} onClick={() => locate(u.original)}>
+                        {showOriginal && <div className="trans-orig">{u.original}</div>}
+                        {u.translation && <div className="trans-zh">{u.translation}</div>}
+                      </div>
+                    ) : null,
+                  )}
                 </div>
               ))}
             </div>

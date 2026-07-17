@@ -452,3 +452,8 @@ button.small { font-size: 12px; padding: 3px 8px; margin-top: 6px; }
 
 /* arXiv LaTeX source viewer */
 .tex-src { white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.55; color: var(--fg); background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow-x: auto; }
+
+/* LaTeX-source translation, by section */
+.tex-section { margin-top: 12px; }
+.tex-sec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+.tex-sec-title { font-weight: 600; font-size: 13px; }

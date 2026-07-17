@@ -149,21 +149,26 @@ async def get_translations(paper_id: str, lang: str | None = None):
     }
 
 
+class TexTransBody(Override):
+    section: int | None = None  # section index; None = all sections
+
+
 @router.post("/papers/{paper_id}/translate_tex")
-async def translate_tex(paper_id: str, body: Override):
-    """Translate an arXiv paper's LaTeX source (nothing missed by PDF extraction)."""
+async def translate_tex(paper_id: str, body: TexTransBody):
+    """Translate an arXiv paper's LaTeX source, by section (or all)."""
     try:
-        units = await translate_feat.translate_tex(
-            paper_id, language=body.language, provider=body.provider, model=body.model
+        sections = await translate_feat.translate_tex(
+            paper_id, section=body.section, language=body.language,
+            provider=body.provider, model=body.model,
         )
     except ValueError as e:
         raise HTTPException(400, str(e))
-    return {"units": units}
+    return {"sections": sections}
 
 
-@router.get("/papers/{paper_id}/tex_translations")
-async def get_tex_translations(paper_id: str, lang: str | None = None):
-    return {"units": translate_feat.get_tex_translations(paper_id, language=lang)}
+@router.get("/papers/{paper_id}/tex_sections")
+async def get_tex_sections(paper_id: str, lang: str | None = None):
+    return {"sections": await translate_feat.tex_sections(paper_id, language=lang)}
 
 
 @router.post("/papers/{paper_id}/autohighlight")

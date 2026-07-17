@@ -19,7 +19,7 @@
 ### 🌐 翻译 / Translate
 - **逐句翻译 + 持久缓存 + 跨页复用**，重进自动恢复；每句独立方框，默认只显示中文、可切换显示原文。
 - **点击译文 → 在 PDF 中闪烁定位**原文。*Click a sentence to flash-locate it in the PDF.*
-- **从 LaTeX 源翻译（arXiv）**：直接翻译论文源码，补齐 PDF 提取漏掉的文本。*Translate arXiv LaTeX source — nothing missed.*
+- **从 LaTeX 源翻译（arXiv）**：按解析出的章节（Abstract / Results …）逐节翻译或一次全部，补齐 PDF 提取漏掉的文本。*Translate arXiv LaTeX source by section or all — nothing missed.*
 
 ### 💬 对话与面板 / Chat & panels
 - 对话**按论文保存历史**、支持**多会话**、可新建/删除；**加入会话**（PDF 或各面板选中→送入 Chat 并作答）。

@@ -180,13 +180,12 @@ _DROP_ENVS = ["figure", "figure*", "table", "table*", "wrapfigure", "tikzpicture
               "algorithm", "algorithmic", "tabular", "lstlisting", "verbatim", "thebibliography"]
 
 
-def _tex_to_units(doc: str) -> list[str]:
-    """Clean LaTeX into readable paragraphs (keeping inline math)."""
-    m = re.search(r"\\begin\{document\}(.*?)\\end\{document\}", doc, re.S)
-    body = m.group(1) if m else doc
+def _clean_body(text: str) -> str:
+    """Strip LaTeX markup from a chunk (keeps inline math); no \\section handling."""
+    body = text
     for env in _DROP_ENVS:
         body = re.sub(r"\\begin\{" + re.escape(env) + r"\}.*?\\end\{" + re.escape(env) + r"\}", " ", body, flags=re.S)
-    body = re.sub(r"\\(?:sub){0,2}section\*?\{([^}]*)\}", r"\n\n\1.\n\n", body)
+    body = re.sub(r"\\(?:sub){1,2}section\*?\{([^}]*)\}", r"\n\n\1.\n\n", body)  # subsections → inline headings
     body = re.sub(r"\\(?:paragraph|subparagraph)\*?\{([^}]*)\}", r"\n\n\1. ", body)
     body = re.sub(r"\\(?:label|ref|eqref|pageref|autoref|cref|Cref)\{[^}]*\}", "", body)
     body = re.sub(r"\\(?:cite|citep|citet|citealp|citeauthor|citeyear)\*?(?:\[[^\]]*\])?\{[^}]*\}", "", body)
@@ -203,34 +202,99 @@ def _tex_to_units(doc: str) -> list[str]:
         body,
     )
     body = re.sub(r"\\(?:bibliographystyle|bibliography|vspace\*?|hspace\*?)\{[^}]*\}", " ", body)
-    units: list[str] = []
-    for p in re.split(r"\n\s*\n", body):
+    return body
+
+
+def _sentences_of(text: str) -> list[str]:
+    out: list[str] = []
+    for p in re.split(r"\n\s*\n", _clean_body(text)):
         t = re.sub(r"\s+", " ", p).strip()
         if len(t) >= 4 and re.search(r"[A-Za-z]{2,}", t):
-            units.append(t)
-    return units
+            for s in structure.split_sentences(t):
+                s = s.strip()
+                if s:
+                    out.append(s)
+    return out
+
+
+def _parse_sections(doc: str) -> list[dict]:
+    """Split the LaTeX into [{title, sentences}] — abstract + each \\section."""
+    m = re.search(r"\\begin\{document\}(.*?)\\end\{document\}", doc, re.S)
+    body = m.group(1) if m else doc
+    raw: list[tuple[str, str]] = []
+    mabs = re.search(r"\\begin\{abstract\}(.*?)\\end\{abstract\}", body, re.S)
+    if mabs:
+        raw.append(("Abstract", mabs.group(1)))
+        body = body[: mabs.start()] + body[mabs.end():]
+    parts = re.split(r"\\section\*?\{((?:[^{}]|\{[^{}]*\})*)\}", body)
+    for i in range(1, len(parts), 2):
+        title = re.sub(r"\\[a-zA-Z]+\*?", "", parts[i])  # drop macros in the title
+        title = re.sub(r"[{}]", "", title)
+        title = re.sub(r"\s+", " ", title).strip() or f"Section {i // 2 + 1}"
+        raw.append((title, parts[i + 1] if i + 1 < len(parts) else ""))
+    out = []
+    for title, content in raw:
+        sents = _sentences_of(content)
+        if sents:
+            out.append({"title": title, "sentences": sents})
+    return out
+
+
+async def ensure_tex_sections(paper_id: str) -> list[dict]:
+    cached = store.cache_get(paper_id, "texsections")
+    if cached:
+        return cached
+    files = await _get_tex_files(paper_id)
+    if not files:
+        return []
+    secs = _parse_sections(_build_document(files))
+    if secs:
+        store.cache_set(paper_id, "texsections", secs)
+    return secs
+
+
+def _sections_view(secs: list[dict], paper_id: str, tgt: str) -> list[dict]:
+    cache = store.cache_get(paper_id, _cache_key(tgt)) or {}
+    view = []
+    for s in secs:
+        units = [{"original": t, "translation": cache.get(_sid(t), "")} for t in s["sentences"]]
+        view.append({
+            "title": s["title"],
+            "count": len(units),
+            "done": sum(1 for u in units if u["translation"]),
+            "units": units,
+        })
+    return view
+
+
+async def tex_sections(paper_id: str, *, language: str | None = None) -> list[dict]:
+    """Parsed LaTeX sections with any cached translations filled in (no LLM call)."""
+    secs = await ensure_tex_sections(paper_id)
+    return _sections_view(secs, paper_id, _target(language))
 
 
 async def translate_tex(
-    paper_id: str, *, language: str | None = None, provider: str | None = None, model: str | None = None,
+    paper_id: str, *, section: int | None = None, language: str | None = None,
+    provider: str | None = None, model: str | None = None,
 ) -> list[dict]:
-    """Translate an arXiv paper's LaTeX source, sentence by sentence (shared cache)."""
-    files = await _get_tex_files(paper_id)
-    if not files:
+    """Translate one section (by index) or all sections; returns the sections view."""
+    secs = await ensure_tex_sections(paper_id)
+    if not secs:
         raise ValueError("no LaTeX source for this paper")
-    sents: list[str] = []
-    for unit in _tex_to_units(_build_document(files)):
-        for s in structure.split_sentences(unit):
-            s = s.strip()
-            if s:
-                sents.append(s)
-
     tgt = _target(language)
+    if section is None:
+        chosen = secs
+    elif 0 <= section < len(secs):
+        chosen = [secs[section]]
+    else:
+        chosen = []
+
     cache = store.cache_get(paper_id, _cache_key(tgt)) or {}
     todo: dict[str, str] = {}
-    for s in sents:
-        if not cache.get(_sid(s)):
-            todo.setdefault(_sid(s), s)
+    for s in chosen:
+        for t in s["sentences"]:
+            if not cache.get(_sid(t)):
+                todo.setdefault(_sid(t), t)
     if todo:
         items = list(todo.items())
         system = (
@@ -246,23 +310,6 @@ async def translate_tex(
             by_i = {int(x["i"]): x.get("t", "") for x in result.get("s", []) if "i" in x}
             for j, (sid, _t) in enumerate(chunk):
                 cache[sid] = by_i.get(j, "")
-            # save after each batch so a long run's progress survives interruption
-            store.cache_set(paper_id, _cache_key(tgt), cache)
+            store.cache_set(paper_id, _cache_key(tgt), cache)  # incremental save
 
-    # remember the tex sentence order (language-independent) for restore-on-entry
-    store.cache_set(paper_id, "texunits", [{"sid": _sid(s), "original": s} for s in sents])
-    return [{"original": s, "translation": cache.get(_sid(s), "")} for s in sents]
-
-
-def get_tex_translations(paper_id: str, *, language: str | None = None) -> list[dict]:
-    units = store.cache_get(paper_id, "texunits")
-    if not units:
-        return []
-    tgt = _target(language)
-    cache = store.cache_get(paper_id, _cache_key(tgt)) or {}
-    out = []
-    for u in units:
-        t = cache.get(u["sid"])
-        if t:
-            out.append({"original": u["original"], "translation": t})
-    return out
+    return _sections_view(secs, paper_id, tgt)
