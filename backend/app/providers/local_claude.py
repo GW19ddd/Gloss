@@ -63,7 +63,7 @@ class LocalClaudeProvider(Provider):
         try:
             if system:
                 # argv is capped ~128KB; papers easily exceed that -> use a file
-                fd, tmp_path = tempfile.mkstemp(prefix="moonlight-sys-", suffix=".txt")
+                fd, tmp_path = tempfile.mkstemp(prefix="gloss-sys-", suffix=".txt")
                 with os.fdopen(fd, "w") as f:
                     f.write(system)
                 cmd += ["--system-prompt-file", tmp_path]
@@ -129,7 +129,7 @@ class LocalClaudeProvider(Provider):
         streamed_any = False
         try:
             if system:
-                fd, tmp_path = tempfile.mkstemp(prefix="moonlight-sys-", suffix=".txt")
+                fd, tmp_path = tempfile.mkstemp(prefix="gloss-sys-", suffix=".txt")
                 with os.fdopen(fd, "w") as f:
                     f.write(system)
                 cmd += ["--system-prompt-file", tmp_path]

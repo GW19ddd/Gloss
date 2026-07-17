@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Moonlight-Local CLI — a thin terminal wrapper over the same backend.
+"""Gloss-Local CLI — a thin terminal wrapper over the same backend.
 
 Usage:
   moonlight serve                 # start the web app (prints URL)
@@ -52,7 +52,7 @@ def _resolve_paper(idish: str) -> dict:
 def cmd_serve(args):
     import uvicorn
 
-    print(f"🌙 Moonlight-Local → http://{config.HOST}:{config.PORT}")
+    print(f"🌙 Gloss-Local → http://{config.HOST}:{config.PORT}")
     print("   (open in a browser; Ctrl-C to stop)")
     uvicorn.run("app.main:app", host=config.HOST, port=config.PORT, app_dir=str(_ROOT / "backend"))
 

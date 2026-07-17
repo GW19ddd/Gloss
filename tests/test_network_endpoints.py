@@ -1,5 +1,5 @@
 """Endpoints that reach the external network (Semantic Scholar / arXiv /
-Crossref). Gated behind ``MOONLIGHT_TEST_NETWORK=1`` and skipped by default.
+Crossref). Gated behind ``GLOSS_TEST_NETWORK=1`` and skipped by default.
 
 The app is designed to degrade gracefully when a host is unreachable, so these
 assert on the response *shape* (a 2xx with the expected container), not on any

@@ -6,7 +6,7 @@ from ..library import store
 from .common import json_complete, truncate_to_tokens
 
 SYSTEM = (
-    "You are Moonlight, an expert research colleague. You read academic papers and "
+    "You are Gloss, an expert research colleague. You read academic papers and "
     "produce faithful, concrete summaries. Never invent results; only use the paper. "
     "Write in the SAME language the user asks for (default: the paper's language)."
 )

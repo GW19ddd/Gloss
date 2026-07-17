@@ -17,7 +17,7 @@ from ..pdf import structure
 from .common import json_complete, text_complete
 
 SYSTEM = (
-    "You are Moonlight's academic translator. Translate faithfully into {target}, "
+    "You are Gloss's academic translator. Translate faithfully into {target}, "
     "preserving technical terminology, entity names, and inline math/LaTeX EXACTLY "
     "as written (do not translate symbols inside $...$). Keep the meaning precise; "
     "do not add or drop content. Output only the translation."

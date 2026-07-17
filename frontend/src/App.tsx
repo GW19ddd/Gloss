@@ -3,7 +3,7 @@ import { useStore } from "./store";
 import { Library } from "./components/Library";
 import { Outline } from "./components/Outline";
 import { SidePanel } from "./components/SidePanel";
-import { ThemePicker } from "./components/ThemePicker";
+import { Logo } from "./components/Logo";
 import { PdfViewer } from "./pdf/PdfViewer";
 
 export default function App() {
@@ -18,31 +18,33 @@ export default function App() {
 
   const clampWidth = (w: number) => Math.min(900, Math.max(320, w));
   const [sideWidth, setSideWidth] = useState(() =>
-    clampWidth(Number(localStorage.getItem("moonlight.sideWidth")) || 440)
+    clampWidth(Number(localStorage.getItem("gloss.sideWidth")) || 440)
   );
   const dragging = useRef(false);
 
   const clampOutline = (w: number) => Math.min(420, Math.max(120, w));
   const [outlineWidth, setOutlineWidth] = useState(() =>
-    clampOutline(Number(localStorage.getItem("moonlight.outlineWidth")) || 190)
+    clampOutline(Number(localStorage.getItem("gloss.outlineWidth")) || 190)
   );
   const [outlineCollapsed, setOutlineCollapsed] = useState(
-    () => localStorage.getItem("moonlight.outlineCollapsed") === "1"
+    () => localStorage.getItem("gloss.outlineCollapsed") === "1"
   );
 
   useEffect(() => {
+    // apply the saved theme on load (the picker itself now lives in Settings)
+    document.documentElement.dataset.theme = localStorage.getItem("gloss.theme") || "midnight";
     loadPapers();
     loadSettings();
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("moonlight.sideWidth", String(sideWidth));
+    localStorage.setItem("gloss.sideWidth", String(sideWidth));
   }, [sideWidth]);
   useEffect(() => {
-    localStorage.setItem("moonlight.outlineWidth", String(outlineWidth));
+    localStorage.setItem("gloss.outlineWidth", String(outlineWidth));
   }, [outlineWidth]);
   useEffect(() => {
-    localStorage.setItem("moonlight.outlineCollapsed", outlineCollapsed ? "1" : "0");
+    localStorage.setItem("gloss.outlineCollapsed", outlineCollapsed ? "1" : "0");
   }, [outlineCollapsed]);
 
   useEffect(() => {
@@ -84,7 +86,9 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand" onClick={closePaper} style={{ cursor: "pointer" }}>
-          🌙 Moonlight <span className="local">local</span>
+          <Logo size={20} />
+          <span className="brand-name">Gloss</span>
+          <span className="brand-zh">旁注</span>
         </div>
         {current && (
           <div className="crumbs">
@@ -92,7 +96,6 @@ export default function App() {
           </div>
         )}
         <div className="spacer" />
-        <ThemePicker />
         <div className="provider-badge" title="Active AI provider">⚡ {provider}</div>
       </header>
 

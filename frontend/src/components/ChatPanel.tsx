@@ -207,13 +207,13 @@ export function ChatPanel() {
         )}
         {msgs.map((m, i) => (
           <div key={i} className={"msg " + m.role}>
-            <div className="msg-role">{m.role === "user" ? "you" : "moonlight"}</div>
+            <div className="msg-role">{m.role === "user" ? "you" : "gloss"}</div>
             {m.role === "assistant" ? <Markdown text={m.content} /> : <UserMsg content={m.content} />}
           </div>
         ))}
         {streamed && (
           <div className="msg assistant">
-            <div className="msg-role">moonlight</div>
+            <div className="msg-role">gloss</div>
             <Markdown text={streamed} />
           </div>
         )}

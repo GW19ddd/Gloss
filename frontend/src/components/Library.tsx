@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { api } from "../api/client";
 import { useStore } from "../store";
+import { Logo } from "./Logo";
 
 export function Library() {
   const papers = useStore((s) => s.papers);
@@ -53,8 +54,8 @@ export function Library() {
   return (
     <div className="library">
       <div className="lib-hero">
-        <h1>🌙 Moonlight</h1>
-        <p className="tagline">Your local AI colleague for reading papers — powered by your local Claude.</p>
+        <h1 className="hero-title"><Logo size={40} /> Gloss <span className="hero-zh">旁注</span></h1>
+        <p className="tagline">照亮论文的批注 · 本地 AI 论文阅读助手，默认接入本地 Claude。</p>
         <div className="import-row">
           <input
             className="import-input"

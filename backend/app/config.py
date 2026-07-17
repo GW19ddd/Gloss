@@ -1,4 +1,4 @@
-"""Configuration + on-disk paths for Moonlight-Local.
+"""Configuration + on-disk paths for Gloss-Local.
 
 Everything lives under the project's ``backend/data`` dir (which sits on the fast
 data disk via the project symlink). Provider settings are persisted to
@@ -16,7 +16,7 @@ from typing import Any
 # Paths
 # ---------------------------------------------------------------------------
 _BACKEND_DIR = Path(__file__).resolve().parent.parent          # backend/
-DATA_DIR = Path(os.environ.get("MOONLIGHT_DATA_DIR", _BACKEND_DIR / "data")).resolve()
+DATA_DIR = Path(os.environ.get("GLOSS_DATA_DIR", _BACKEND_DIR / "data")).resolve()
 PAPERS_DIR = DATA_DIR / "papers"
 UPLOADS_DIR = DATA_DIR / "uploads"
 DB_PATH = DATA_DIR / "moonlight.db"
@@ -71,8 +71,8 @@ def ensure_codex_sandbox() -> Path:
 # ---------------------------------------------------------------------------
 # Server
 # ---------------------------------------------------------------------------
-HOST = os.environ.get("MOONLIGHT_HOST", "0.0.0.0")
-PORT = int(os.environ.get("MOONLIGHT_PORT", "8010"))
+HOST = os.environ.get("GLOSS_HOST", "0.0.0.0")
+PORT = int(os.environ.get("GLOSS_PORT", "8010"))
 
 # ---------------------------------------------------------------------------
 # Provider / app configuration (persisted)

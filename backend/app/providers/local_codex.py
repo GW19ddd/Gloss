@@ -36,7 +36,7 @@ class LocalCodexProvider(Provider):
         transcript = render_transcript(messages)
         prompt = f"{system}\n\n{transcript}" if system else transcript
 
-        fd, out_path = tempfile.mkstemp(prefix="moonlight-codex-", suffix=".txt")
+        fd, out_path = tempfile.mkstemp(prefix="gloss-codex-", suffix=".txt")
         os.close(fd)
         cmd = [
             "codex", "exec",

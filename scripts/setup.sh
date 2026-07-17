@@ -3,7 +3,7 @@
 # All caches/artefacts stay on the data disk (system disk is small).
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DATA_DISK="${MOONLIGHT_DATA_DISK:-/root/autodl-tmp}"
+DATA_DISK="${GLOSS_DATA_DISK:-/root/autodl-tmp}"
 
 export PIP_CACHE_DIR="$DATA_DISK/.pip_cache"
 export npm_config_cache="$DATA_DISK/.npm-cache"
@@ -23,4 +23,4 @@ cd "$ROOT/frontend"
 npm install --no-fund --no-audit
 npm run build
 
-echo "==> done. Start with:  scripts/run.sh   (or  ./moonlight serve )"
+echo "==> done. Start with:  scripts/run.sh   (or  ./gloss serve )"

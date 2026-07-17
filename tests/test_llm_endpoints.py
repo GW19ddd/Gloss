@@ -1,7 +1,7 @@
 """Provider-backed endpoints (summarize / notes / mind-map / explain / translate
 / chat / auto-highlight).
 
-These call a real LLM, so they are gated behind ``MOONLIGHT_TEST_LLM=1`` and are
+These call a real LLM, so they are gated behind ``GLOSS_TEST_LLM=1`` and are
 skipped by default (including in CI). Assertions are intentionally loose — the
 *content* is model-dependent; we only pin the observable contract: a 2xx and a
 non-empty response.

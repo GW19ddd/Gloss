@@ -53,7 +53,7 @@ async def run_skill(body: RunSkillBody):
         context += f"\n\n[Selected text]:\n{body.selection}"
 
     system = (
-        f"You are running the '{skill['name']}' skill inside Moonlight, a paper reader. "
+        f"You are running the '{skill['name']}' skill inside Gloss, a paper reader. "
         f"Follow these skill instructions faithfully:\n\n{instructions}"
     )
     if context:

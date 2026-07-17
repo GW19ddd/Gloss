@@ -6,7 +6,7 @@ from ..library import store
 from .common import json_complete, truncate_to_tokens
 
 SYSTEM = (
-    "You are Moonlight, an expert who distills an academic paper into a clear, "
+    "You are Gloss, an expert who distills an academic paper into a clear, "
     "richly-annotated mind map. The root is the paper's core topic/title. Branches "
     "are the major aspects; leaves are concrete specifics. For EVERY node provide:\n"
     "  - title: SHORT label (max ~8 words, no trailing period)\n"

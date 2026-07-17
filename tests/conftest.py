@@ -1,14 +1,14 @@
-"""Black-box test harness for Moonlight-Local.
+"""Black-box test harness for Gloss-Local.
 
 These tests treat the running FastAPI application as a *black box*: they exercise
 it only through its public HTTP API — the same ``/api/*`` surface the web UI and
-the ``./moonlight`` CLI use — and never import or assert on internal
+the ``./gloss`` CLI use — and never import or assert on internal
 implementation modules. The contract under test is what a client observes:
 status codes, response shapes, and end-to-end behaviour.
 
 Isolation
 ---------
-``backend/app/config.py`` resolves ``MOONLIGHT_DATA_DIR`` *at import time*, so we
+``backend/app/config.py`` resolves ``GLOSS_DATA_DIR`` *at import time*, so we
 point it at a throwaway temp directory **before** the app is ever imported. That
 temp dir holds the SQLite DB, uploaded PDFs and ``config.json`` for the test
 session, so the real user library under ``backend/data/`` is never touched.
@@ -17,7 +17,7 @@ Gated tests
 -----------
 Endpoints that call an LLM provider or reach the external network are marked
 ``llm`` / ``network`` and are skipped unless the matching env var is set
-(``MOONLIGHT_TEST_LLM=1`` / ``MOONLIGHT_TEST_NETWORK=1``). CI runs the fast,
+(``GLOSS_TEST_LLM=1`` / ``GLOSS_TEST_NETWORK=1``). CI runs the fast,
 fully-deterministic subset by default.
 """
 
@@ -42,7 +42,7 @@ if str(_BACKEND_DIR) not in sys.path:
 # needed — and the app's own external_client() still uses HTTPS_PROXY for the
 # network-gated tests.)
 _DATA_DIR = Path(tempfile.mkdtemp(prefix="moonlight-tests-"))
-os.environ["MOONLIGHT_DATA_DIR"] = str(_DATA_DIR)
+os.environ["GLOSS_DATA_DIR"] = str(_DATA_DIR)
 
 
 def pytest_sessionfinish(session, exitstatus):  # noqa: ARG001
@@ -52,10 +52,10 @@ def pytest_sessionfinish(session, exitstatus):  # noqa: ARG001
 
 def pytest_collection_modifyitems(config, items):  # noqa: ARG001
     """Skip provider/network tests unless explicitly enabled via env vars."""
-    run_llm = os.environ.get("MOONLIGHT_TEST_LLM") == "1"
-    run_net = os.environ.get("MOONLIGHT_TEST_NETWORK") == "1"
-    skip_llm = pytest.mark.skip(reason="LLM provider not enabled (set MOONLIGHT_TEST_LLM=1)")
-    skip_net = pytest.mark.skip(reason="external network not enabled (set MOONLIGHT_TEST_NETWORK=1)")
+    run_llm = os.environ.get("GLOSS_TEST_LLM") == "1"
+    run_net = os.environ.get("GLOSS_TEST_NETWORK") == "1"
+    skip_llm = pytest.mark.skip(reason="LLM provider not enabled (set GLOSS_TEST_LLM=1)")
+    skip_net = pytest.mark.skip(reason="external network not enabled (set GLOSS_TEST_NETWORK=1)")
     for item in items:
         if "llm" in item.keywords and not run_llm:
             item.add_marker(skip_llm)

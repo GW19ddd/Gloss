@@ -6,7 +6,7 @@ from ..library import store
 from .common import text_complete, truncate_to_tokens
 
 SYSTEM = (
-    "You are Moonlight, an expert research colleague. Explain the selected excerpt "
+    "You are Gloss, an expert research colleague. Explain the selected excerpt "
     "from a paper clearly and concretely, grounded in the surrounding context. "
     "If it is an equation, explain every symbol and the intuition. If it is a table "
     "or figure caption, explain what it shows and why it matters. Define jargon. "

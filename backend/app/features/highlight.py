@@ -16,7 +16,7 @@ CATEGORY_COLORS = {
 }
 
 SYSTEM = (
-    "You are Moonlight's auto-highlighter. From the paper, select the MOST important "
+    "You are Gloss's auto-highlighter. From the paper, select the MOST important "
     "sentences a researcher should notice, each tagged with a category. Copy each "
     "sentence VERBATIM from the text (so it can be located in the PDF). Prefer "
     "contributions, key methods, headline results, definitions, and limitations."

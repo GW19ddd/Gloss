@@ -1,6 +1,6 @@
 # Tests
 
-Black-box tests for Moonlight-Local. They drive the app **only through its public
+Black-box tests for Gloss-Local. They drive the app **only through its public
 HTTP API** (`/api/*`) — the same surface the web UI and the `./moonlight` CLI use
 — and never import or assert on internal implementation modules. Each test starts
 the FastAPI app in-process with `TestClient`, uploads a synthesised PDF, and
@@ -23,7 +23,7 @@ checks status codes, response shapes, and end-to-end behaviour.
 
 ## Isolation
 
-`MOONLIGHT_DATA_DIR` is pointed at a fresh temp directory **before the app is
+`GLOSS_DATA_DIR` is pointed at a fresh temp directory **before the app is
 imported**, so the SQLite DB, uploaded PDFs and `config.json` all live in a
 throwaway location — the real library under `backend/data/` is never touched.
 
@@ -35,8 +35,8 @@ backend/.venv/bin/python -m pytest -v
 
 # Deterministic tests only run by default. To also exercise the provider-backed
 # and network-backed endpoints:
-MOONLIGHT_TEST_LLM=1 backend/.venv/bin/python -m pytest -v          # needs a working LLM provider
-MOONLIGHT_TEST_NETWORK=1 backend/.venv/bin/python -m pytest -v      # needs external network
+GLOSS_TEST_LLM=1 backend/.venv/bin/python -m pytest -v          # needs a working LLM provider
+GLOSS_TEST_NETWORK=1 backend/.venv/bin/python -m pytest -v      # needs external network
 ```
 
 Only `pytest` is an extra dependency (`tests/requirements.txt`); everything else

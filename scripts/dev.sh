@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 cd "$ROOT/backend"
-.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port "${MOONLIGHT_PORT:-8010}" --reload &
+.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port "${GLOSS_PORT:-8010}" --reload &
 BACK=$!
 trap 'kill $BACK 2>/dev/null' EXIT
 

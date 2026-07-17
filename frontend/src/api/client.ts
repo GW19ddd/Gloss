@@ -1,4 +1,4 @@
-// Typed API client for the Moonlight backend, including POST-based SSE streaming.
+// Typed API client for the Gloss backend, including POST-based SSE streaming.
 
 export interface Paper {
   id: string;

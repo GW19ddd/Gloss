@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { useStore } from "../store";
+import { ThemePicker } from "./ThemePicker";
 
 const LANGS = [
   "中文 (Simplified Chinese)",
@@ -58,6 +59,9 @@ export function SettingsPanel() {
 
   return (
     <div className="panel-body settings">
+      <label>主题 / Theme</label>
+      <ThemePicker />
+
       <label>Active AI provider</label>
       <select value={cfg.provider} onChange={(e) => setCfg({ ...cfg, provider: e.target.value })}>
         {providers.map((p) => (

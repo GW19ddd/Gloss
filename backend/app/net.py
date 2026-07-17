@@ -11,7 +11,7 @@ import os
 
 import httpx
 
-UA = {"User-Agent": "Moonlight-Local/1.0 (research paper reader)"}
+UA = {"User-Agent": "Gloss-Local/1.0 (research paper reader)"}
 
 
 def _http_proxy() -> str | None:

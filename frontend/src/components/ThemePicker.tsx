@@ -10,7 +10,7 @@ const THEMES: { id: string; name: string }[] = [
   { id: "daylight", name: "Daylight" },
 ];
 
-const STORAGE_KEY = "moonlight.theme";
+const STORAGE_KEY = "gloss.theme";
 
 export function ThemePicker() {
   const [theme, setTheme] = useState(

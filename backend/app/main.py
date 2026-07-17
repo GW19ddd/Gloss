@@ -1,4 +1,4 @@
-"""Moonlight-Local FastAPI application.
+"""Gloss-Local FastAPI application.
 
 Mounts all API routers and serves the built React frontend (SPA) from
 ``frontend/dist``. One process, one port.
@@ -25,7 +25,7 @@ from .routers import (
     skills,
 )
 
-app = FastAPI(title="Moonlight-Local", version="1.0.0")
+app = FastAPI(title="Gloss-Local", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,

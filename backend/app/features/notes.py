@@ -6,7 +6,7 @@ from ..library import store
 from .common import text_complete, truncate_to_tokens
 
 SYSTEM = (
-    "You are Moonlight, an expert researcher writing polished, faithful study "
+    "You are Gloss, an expert researcher writing polished, faithful study "
     "notes for an academic paper. Be concrete; never hallucinate; only use the "
     "paper. Cite section/figure names when useful, and render math with $...$. "
     "Write ENTIRELY in {lang}. Use Markdown with clear ## headings in this order: "

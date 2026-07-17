@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Moonlight-Local — a self-hosted clone of Moonlight (themoonlight.io), an "AI colleague for
+Gloss-Local — a self-hosted clone of Gloss (themoonlight.io), an "AI colleague for
 reading research papers". A FastAPI backend serves a React/PDF.js reader UI and drives an LLM that
 defaults to the **local `claude` CLI** (subscription auth, no API key) but can also use any
 Anthropic or OpenAI-compatible endpoint. It can also load and run Claude/Codex **skills** against
@@ -24,7 +24,7 @@ the open paper.
 scripts/setup.sh            # create backend venv + install; npm install + vite build
 scripts/run.sh              # serve web app (built frontend + API) on :8010 (0.0.0.0)
 scripts/dev.sh              # dev: uvicorn --reload :8010 + vite dev :5173 (proxies /api)
-./moonlight <cmd>           # CLI: serve | open <src> | import <src> | ls | summarize <id|pdf|arxiv> | chat <id> | skills
+./gloss <cmd>           # CLI: serve | open <src> | import <src> | ls | summarize <id|pdf|arxiv> | chat <id> | skills
 
 # manual backend run
 cd backend && .venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8010
@@ -32,7 +32,7 @@ cd backend && .venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 801
 cd frontend && npm run build
 ```
 
-Ports: `MOONLIGHT_PORT` (default 8010), `MOONLIGHT_HOST` (default 0.0.0.0). On AutoDL, map to the
+Ports: `GLOSS_PORT` (default 8010), `GLOSS_HOST` (default 0.0.0.0). On AutoDL, map to the
 6006 custom-service port or use SSH forwarding to reach it from a browser.
 
 There is no test suite; verify by driving the API (upload a PDF → summarize/chat/etc.) or the CLI.
