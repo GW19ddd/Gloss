@@ -40,6 +40,9 @@ export function PdfViewer() {
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
   const docRef = useRef<any>(null);
   const [popover, setPopover] = useState<{ x: number; y: number } | null>(null);
+  const [showHl, setShowHl] = useState(() => localStorage.getItem("gloss.showHl") !== "0");
+  const [dispOpen, setDispOpen] = useState(false);
+  const renderTasksRef = useRef<any[]>([]);
 
   // Load the PDF document once per paper.
   useEffect(() => {
@@ -65,26 +68,58 @@ export function PdfViewer() {
     const doc = docRef.current;
     if (!doc || !rendered) return;
     let cancelled = false;
+    // cancel any in-flight renders from a previous scale so they don't collide
+    // with the new ones on the same canvas (which makes PDF.js throw).
+    renderTasksRef.current.forEach((t) => {
+      try {
+        t.cancel();
+      } catch {}
+    });
+    renderTasksRef.current = [];
+    // supersample: render the bitmap at >=2x the display size so text is crisp
+    // even on 1x monitors, then let CSS downscale it to the layout size.
+    const quality = Math.max(2, window.devicePixelRatio || 1);
+
     (async () => {
+      const items: ({ page: any; vp: any } | null)[] = [];
+      // pass 1 — size every page holder first so a zoom applies to ALL pages at once
       for (let i = 1; i <= doc.numPages; i++) {
         if (cancelled) return;
         const holder = pageRefs.current[i - 1];
-        if (!holder) continue;
+        if (!holder) {
+          items[i] = null;
+          continue;
+        }
         const page = await doc.getPage(i);
-        const viewport = page.getViewport({ scale });
-        holder.style.width = `${viewport.width}px`;
-        holder.style.height = `${viewport.height}px`;
+        const vp = page.getViewport({ scale });
+        holder.style.width = `${vp.width}px`;
+        holder.style.height = `${vp.height}px`;
+        items[i] = { page, vp };
+      }
+      // pass 2 — render each page's bitmap + text layer (a failure on one page
+      // must not abort the others)
+      for (let i = 1; i <= doc.numPages; i++) {
+        if (cancelled) return;
+        const it = items[i];
+        const holder = pageRefs.current[i - 1];
+        if (!it || !holder) continue;
+        const { page, vp } = it;
         const canvas = holder.querySelector("canvas") as HTMLCanvasElement;
         const textLayer = holder.querySelector(".text-layer") as HTMLDivElement;
+        const rvp = page.getViewport({ scale: scale * quality });
+        canvas.width = Math.floor(rvp.width);
+        canvas.height = Math.floor(rvp.height);
+        canvas.style.width = `${vp.width}px`;
+        canvas.style.height = `${vp.height}px`;
         const ctx = canvas.getContext("2d")!;
-        const dpr = window.devicePixelRatio || 1;
-        canvas.width = viewport.width * dpr;
-        canvas.height = viewport.height * dpr;
-        canvas.style.width = `${viewport.width}px`;
-        canvas.style.height = `${viewport.height}px`;
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        await page.render({ canvasContext: ctx, viewport }).promise;
-        if (textLayer) await renderTextLayer(page, viewport, textLayer);
+        try {
+          const task = page.render({ canvasContext: ctx, viewport: rvp });
+          renderTasksRef.current.push(task);
+          await task.promise;
+          if (textLayer) await renderTextLayer(page, vp, textLayer);
+        } catch {
+          /* render cancelled (scale changed) or failed — leave this page for the next pass */
+        }
       }
     })();
     return () => {
@@ -165,6 +200,26 @@ export function PdfViewer() {
           <span>{Math.round(scale * 100)}%</span>
           <button onClick={() => setScale((s) => Math.min(3, s + 0.15))}>+</button>
         </div>
+        <div className="pdf-disp">
+          <button className="pdf-disp-btn" title="显示设置" onClick={() => setDispOpen((o) => !o)}>
+            👁
+          </button>
+          {dispOpen && (
+            <div className="pdf-disp-pop" onMouseLeave={() => setDispOpen(false)}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={showHl}
+                  onChange={(e) => {
+                    setShowHl(e.target.checked);
+                    localStorage.setItem("gloss.showHl", e.target.checked ? "1" : "0");
+                  }}
+                />
+                显示批注与高亮
+              </label>
+            </div>
+          )}
+        </div>
       </div>
       <div className="pdf-scroll" ref={containerRef} onMouseUp={onMouseUp}>
         {Array.from({ length: n }).map((_, i) => {
@@ -178,6 +233,7 @@ export function PdfViewer() {
               ref={(el) => (pageRefs.current[i] = el)}
             >
               <canvas />
+              {showHl && (
               <div className="highlight-layer">
                 {highlights
                   .filter((h) => h.page === i)
@@ -199,6 +255,7 @@ export function PdfViewer() {
                     )),
                   )}
               </div>
+              )}
               <div className="text-layer" />
               <div className="page-num">{i + 1}</div>
             </div>

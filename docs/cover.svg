@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" fill="none" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0e1218"/>
+      <stop offset="1" stop-color="#090b0f"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.28" cy="0.12" r="0.5">
+      <stop offset="0" stop-color="#7c5cff" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#7c5cff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="beam" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b7a4ff" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#b7a4ff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7aa2f7"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="400" fill="url(#bg)"/>
+  <rect width="1200" height="400" fill="url(#glow)"/>
+
+  <!-- light source + beam onto the page -->
+  <path d="M330 78 L468 356 L150 356 Z" fill="url(#beam)"/>
+  <circle cx="330" cy="78" r="48" fill="#a78bfa" fill-opacity="0.22"/>
+  <circle cx="330" cy="78" r="24" fill="#d6c9ff"/>
+
+  <!-- the page, gently tilted, with a marginal gloss -->
+  <g transform="rotate(-6 320 235)">
+    <rect x="214" y="118" width="212" height="252" rx="11" fill="#f6f7fb"/>
+    <rect x="214" y="118" width="212" height="252" rx="11" fill="none" stroke="#d7dbe6" stroke-width="1"/>
+    <rect x="240" y="150" width="118" height="12" rx="6" fill="#8b93a7"/>
+    <g fill="#c4cad8">
+      <rect x="240" y="180" width="158" height="7" rx="3.5"/>
+      <rect x="240" y="198" width="158" height="7" rx="3.5"/>
+      <rect x="240" y="216" width="138" height="7" rx="3.5"/>
+      <rect x="240" y="244" width="158" height="7" rx="3.5"/>
+      <rect x="240" y="262" width="150" height="7" rx="3.5"/>
+      <rect x="240" y="280" width="158" height="7" rx="3.5"/>
+      <rect x="240" y="298" width="112" height="7" rx="3.5"/>
+    </g>
+    <!-- gloss in the margin -->
+    <line x1="406" y1="178" x2="406" y2="224" stroke="#7aa2f7" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="420" cy="260" r="4.5" fill="#a78bfa"/>
+  </g>
+
+  <!-- wordmark -->
+  <text x="560" y="196">
+    <tspan font-size="90" font-weight="800" fill="#eef1f7">Gloss</tspan>
+    <tspan font-size="42" font-weight="700" fill="#a78bfa" dx="20">旁注</tspan>
+  </text>
+  <text x="563" y="250" font-size="23" fill="#aeb7c8">A light that annotates your papers</text>
+  <text x="563" y="286" font-size="21" fill="#8a94a8">照亮论文的批注 · 本地 AI 论文阅读助手</text>
+  <text x="563" y="336" font-size="15" letter-spacing="0.5" fill="#6f7a8d">self-hosted · local claude / codex · PDF reader · summary · notes · mind map · chat</text>
+</svg>

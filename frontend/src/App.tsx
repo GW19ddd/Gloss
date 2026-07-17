@@ -33,7 +33,7 @@ export default function App() {
   useEffect(() => {
     // apply the saved theme + PDF night mode on load (controls live in Settings)
     document.documentElement.dataset.theme = localStorage.getItem("gloss.theme") || "midnight";
-    document.documentElement.dataset.pdf = localStorage.getItem("gloss.pdfDark") === "1" ? "dark" : "light";
+    document.documentElement.dataset.pdf = localStorage.getItem("gloss.pdfMode") || "light";
     loadPapers();
     loadSettings();
   }, []);

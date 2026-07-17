@@ -25,6 +25,8 @@ export function SettingsPanel() {
   const [cfg, setCfg] = useState<any>(null);
   const [providers, setProviders] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     api.getSettings().then((s) => {
@@ -58,12 +60,30 @@ export function SettingsPanel() {
     }
   }
 
+  async function testConn() {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      await save(); // persist current selection/keys so we test exactly what's shown
+      const r = await api.testProvider(cfg.provider);
+      setTestResult(
+        r.ok
+          ? { ok: true, text: `✓ ${r.provider} 连通（${r.latency_ms}ms）` }
+          : { ok: false, text: `✗ ${r.provider} 失败：${r.error}` },
+      );
+    } catch (e: any) {
+      setTestResult({ ok: false, text: `✗ ${String(e.message || e)}` });
+    } finally {
+      setTesting(false);
+    }
+  }
+
   return (
     <div className="panel-body settings">
-      <label>主题 / Theme</label>
+      <label>Theme / 主题</label>
       <ThemePicker />
 
-      <label>PDF 阅读 / Reading</label>
+      <label>Reading mode / 阅读模式</label>
       <PdfModeToggle />
 
       <label>Active AI provider</label>
@@ -72,6 +92,14 @@ export function SettingsPanel() {
           <option key={p} value={p}>{p}</option>
         ))}
       </select>
+      <div className="test-conn">
+        <button className="small" onClick={testConn} disabled={testing}>
+          {testing ? "测试中…" : "🔌 测试连通性"}
+        </button>
+        {testResult && (
+          <span className={"test-result " + (testResult.ok ? "ok" : "bad")}>{testResult.text}</span>
+        )}
+      </div>
 
       <label>Answer language (summary / explain / chat)</label>
       <select

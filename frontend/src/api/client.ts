@@ -238,6 +238,13 @@ export const api = {
 
   listSkills: () => fetch("/api/skills").then((r) => j<{ skills: Skill[]; count: number }>(r)),
 
+  testProvider: (provider: string) =>
+    fetch("/api/settings/test", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ provider }),
+    }).then((r) => j<{ ok: boolean; provider: string; latency_ms?: number; reply?: string; error?: string }>(r)),
+
   getSettings: () =>
     fetch("/api/settings").then((r) => j<{ config: any; available_providers: string[] }>(r)),
   updateSettings: (patch: any) =>

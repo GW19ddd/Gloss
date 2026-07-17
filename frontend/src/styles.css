@@ -413,3 +413,27 @@ button.small { font-size: 12px; padding: 3px 8px; margin-top: 6px; }
 /* delete chat session button */
 .chat-del { background: var(--bg3); border: 1px solid var(--border); color: var(--fg-dim); border-radius: 7px; padding: 4px 8px; font-size: 12px; }
 .chat-del:hover { color: var(--danger); border-color: var(--danger); }
+
+/* PDF sepia (护眼) reading mode */
+:root[data-pdf="sepia"] .pdf-page { background: #f4ecd8; }
+:root[data-pdf="sepia"] .pdf-page canvas { filter: sepia(0.42) brightness(0.97) contrast(0.95); }
+
+/* segmented control (reading mode etc.) */
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--bg3); }
+.seg-btn { background: none; border: none; color: var(--fg-dim); font-size: 12.5px; padding: 5px 14px; border-right: 1px solid var(--border); cursor: pointer; }
+.seg-btn:last-child { border-right: none; }
+.seg-btn:hover { color: var(--fg); background: var(--bg2); }
+.seg-btn.active { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+
+/* PDF display settings (show/hide highlights) */
+.pdf-disp { position: relative; }
+.pdf-disp-btn { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg3); color: var(--fg); font-size: 13px; }
+.pdf-disp-btn:hover { border-color: var(--accent); }
+.pdf-disp-pop { position: absolute; top: 32px; right: 0; z-index: 20; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.5); white-space: nowrap; }
+.pdf-disp-pop label { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--fg); cursor: pointer; }
+
+/* Settings: connectivity test */
+.test-conn { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 6px 0 4px; }
+.test-result { font-size: 12.5px; }
+.test-result.ok { color: #34d399; }
+.test-result.bad { color: var(--danger); }

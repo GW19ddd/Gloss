@@ -13,3 +13,5 @@ backend/data/
 .codex-sandbox/
 *.log
 .DS_Store
+# Agent guidance files (not part of the project itself)
+CLAUDE.md

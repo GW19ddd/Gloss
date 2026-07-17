@@ -1,6 +1,9 @@
 """Settings: view/update provider config (secrets masked on read)."""
 from __future__ import annotations
 
+import asyncio
+import time
+
 from fastapi import APIRouter
 from pydantic import BaseModel
 
@@ -45,3 +48,33 @@ async def update_settings(body: SettingsPatch):
         patch["providers"] = cleaned
     config.save_config(patch)
     return {"config": config.public_config()}
+
+
+class TestBody(BaseModel):
+    provider: str | None = None
+
+
+@router.post("/test")
+async def test_provider(body: TestBody):
+    """Ping a provider with a tiny completion to check it's reachable/authenticated."""
+    provider = body.provider or config.load_config().get("provider")
+    t0 = time.time()
+    try:
+        text, _ = await asyncio.wait_for(
+            registry.complete(
+                "You are a connectivity check. Reply with exactly: OK",
+                [{"role": "user", "content": "ping"}],
+                provider=provider,
+            ),
+            timeout=90,
+        )
+        return {
+            "ok": True,
+            "provider": provider,
+            "latency_ms": int((time.time() - t0) * 1000),
+            "reply": (text or "").strip()[:80],
+        }
+    except asyncio.TimeoutError:
+        return {"ok": False, "provider": provider, "error": "timed out after 90s"}
+    except Exception as e:  # noqa: BLE001 — surface any provider error to the UI
+        return {"ok": False, "provider": provider, "error": str(e)[:400]}
