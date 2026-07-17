@@ -59,6 +59,15 @@ def ensure_claude_sandbox() -> Path:
     _link(real_home / ".claude.json", sb / ".claude.json")
     return sb
 
+
+# Clean working dir for the `codex exec` subprocess (no AGENTS.md to leak).
+CODEX_SANDBOX = (_BACKEND_DIR.parent / ".codex-sandbox").resolve()
+
+
+def ensure_codex_sandbox() -> Path:
+    CODEX_SANDBOX.mkdir(parents=True, exist_ok=True)
+    return CODEX_SANDBOX
+
 # ---------------------------------------------------------------------------
 # Server
 # ---------------------------------------------------------------------------
@@ -79,6 +88,15 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "local_claude": {
             # short names the claude CLI understands, or full claude model ids
             "model": "sonnet",
+            # reasoning effort: "" (CLI default) | low | medium | high | xhigh | max
+            "effort": "",
+            "timeout": 600,
+        },
+        "local_codex": {
+            # empty model = use codex's own configured default
+            "model": "",
+            # codex reasoning effort: "" | minimal | low | medium | high
+            "effort": "medium",
             "timeout": 600,
         },
         "anthropic": {

@@ -5,10 +5,12 @@ from ..config import load_config
 from .anthropic_api import AnthropicProvider
 from .base import Provider, split_system
 from .local_claude import LocalClaudeProvider
+from .local_codex import LocalCodexProvider
 from .openai_api import OpenAIProvider
 
 _PROVIDERS: dict[str, Provider] = {
     "local_claude": LocalClaudeProvider(),
+    "local_codex": LocalCodexProvider(),
     "anthropic": AnthropicProvider(),
     "openai": OpenAIProvider(),
 }

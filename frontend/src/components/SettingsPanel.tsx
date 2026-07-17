@@ -12,6 +12,11 @@ const LANGS = [
   "Español",
 ];
 
+// reasoning-depth options per local CLI (controlled via the standard CLI flags)
+const CLAUDE_EFFORT = ["", "low", "medium", "high", "xhigh", "max"];
+const CODEX_EFFORT = ["", "minimal", "low", "medium", "high"];
+const CLAUDE_MODELS = ["sonnet", "opus", "haiku"];
+
 export function SettingsPanel() {
   const loadSettings = useStore((s) => s.loadSettings);
   const notify = useStore((s) => s.notify);
@@ -76,11 +81,33 @@ export function SettingsPanel() {
         {LANGS.map((l) => <option key={l}>{l}</option>)}
       </select>
 
+      <div className="adv-head">Advanced — local CLI models &amp; thinking depth</div>
+
       <fieldset>
         <legend>local_claude — subscription (no key)</legend>
         <label>model</label>
-        <input value={cfg.providers.local_claude.model}
+        <input list="claude-models" value={cfg.providers.local_claude.model}
           onChange={(e) => setProv("local_claude", "model", e.target.value)} />
+        <datalist id="claude-models">
+          {CLAUDE_MODELS.map((m) => <option key={m} value={m} />)}
+        </datalist>
+        <label>thinking depth (--effort)</label>
+        <select value={cfg.providers.local_claude.effort || ""}
+          onChange={(e) => setProv("local_claude", "effort", e.target.value)}>
+          {CLAUDE_EFFORT.map((v) => <option key={v} value={v}>{v || "(default)"}</option>)}
+        </select>
+      </fieldset>
+
+      <fieldset>
+        <legend>local_codex — ChatGPT subscription (no key)</legend>
+        <label>model (blank = codex default)</label>
+        <input value={cfg.providers.local_codex?.model || ""}
+          onChange={(e) => setProv("local_codex", "model", e.target.value)} />
+        <label>reasoning effort (model_reasoning_effort)</label>
+        <select value={cfg.providers.local_codex?.effort || ""}
+          onChange={(e) => setProv("local_codex", "effort", e.target.value)}>
+          {CODEX_EFFORT.map((v) => <option key={v} value={v}>{v || "(default)"}</option>)}
+        </select>
       </fieldset>
 
       <fieldset>

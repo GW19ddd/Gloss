@@ -222,3 +222,6 @@ button.small { font-size: 12px; padding: 3px 8px; margin-top: 6px; }
 .mm-fallback li { padding: 2px 0; font-size: 13px; }
 .mm-fallback > ul { border-left: none; padding-left: 0; }
 .mm-root { font-weight: 600; color: var(--accent2); }
+
+/* advanced settings header */
+.adv-head { margin: 16px 0 4px; font-size: 12px; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.05em; border-top: 1px solid var(--border); padding-top: 12px; }

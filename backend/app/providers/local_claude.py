@@ -38,6 +38,10 @@ def _timeout() -> float:
     return float(load_config()["providers"]["local_claude"].get("timeout", 600))
 
 
+def _effort() -> str:
+    return (load_config()["providers"]["local_claude"].get("effort") or "").strip()
+
+
 class LocalClaudeProvider(Provider):
     name = "local_claude"
 
@@ -53,6 +57,8 @@ class LocalClaudeProvider(Provider):
             "--tools", "",
             "--model", model,
         ]
+        if _effort():
+            cmd += ["--effort", _effort()]
         tmp_path = None
         try:
             if system:
@@ -117,6 +123,8 @@ class LocalClaudeProvider(Provider):
             "--tools", "",
             "--model", model,
         ]
+        if _effort():
+            cmd += ["--effort", _effort()]
         tmp_path = None
         streamed_any = False
         try:

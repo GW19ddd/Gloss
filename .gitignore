@@ -7,8 +7,9 @@ node_modules/
 frontend/dist/
 # App data (papers, uploads, db, config with keys)
 backend/data/
-# Isolated HOME for the claude CLI subprocess (symlinks to real creds)
+# Isolated HOME/cwd for the claude & codex CLI subprocesses
 .claude-home/
 .claude-sandbox/
+.codex-sandbox/
 *.log
 .DS_Store
