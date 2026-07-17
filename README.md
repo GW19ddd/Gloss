@@ -12,7 +12,7 @@
 
 <p align="center"><sub><i>A beam of light illuminating a page — like a gloss written in the margins.</i></sub></p>
 
-<p align="center"><a href="./README.zh.md"><b>中文文档 →</b></a></p>
+<p align="center"><a href="./README.zh.md"><b>中文文档 →</b></a> · <a href="./CHANGELOG.md"><b>Changelog</b></a></p>
 
 ---
 
@@ -38,7 +38,8 @@ Everything runs on your own machine: one process, one port, open a browser and r
 | 🗺️ **Mind Map** | Interactive React Flow map: zoom, expand/collapse, click a node for its summary and connections |
 | 💬 **Chat** | Ask like a colleague — **BM25 retrieval (RAG)** over the whole paper, **streaming**, **multiple saved sessions per paper**, deletable, new-session anytime |
 | 💡 **Explain** | Select an equation / term / table and get a one-shot explanation; math rendered with **KaTeX** |
-| 🌐 **Translate** | **Sentence-level**, **persistently cached**, **reused across page ranges**; shows the translation only by default, toggle to see the original side-by-side |
+| 🌐 **Translate** | **Sentence-level**, **persistently cached**, **reused across page ranges**; translation-only by default with a show-original toggle; **click a sentence to flash-locate it in the PDF**; for arXiv, **translate the exact LaTeX source** so nothing is missed |
+| 📐 **arXiv LaTeX** | A **TeX tab** to read the paper's LaTeX source (exact, no extraction loss) — and translate from it |
 | 🖍️ **Auto-highlight** | The AI picks key sentences by category and **anchors colored highlights onto the PDF** |
 | ✍️ **Highlights** | Your own multi-color highlights + notes, saved on the page |
 | 🔗 **References** | Parses the bibliography, enriches via **Crossref / arXiv**, **each entry is clickable** |
@@ -47,7 +48,8 @@ Everything runs on your own machine: one process, one port, open a browser and r
 | 🧩 **Skills** | Discover and run **Claude / Codex skills** against the current paper |
 | ➕ **Add to chat** | Select content in the PDF or any panel → send it into Chat and get an answer about it |
 | 🎨 **Themes & reading modes** | **7 color themes**, plus PDF reading modes — **Normal / Sepia (护眼) / Night (夜间)** |
-| 🗣️ **Configurable language** | The AI's **answer language** and **translation target language** are both configurable |
+| 🗣️ **Languages** | **Interface language** (English / 中文, default English), plus the AI's **answer language** and **translation target language** |
+| ⚙️ **Quality** | Long operations keep running across tab switches; panels stay mounted so **scroll position and mind-map viewport are preserved**; **Test-connection** button for each provider |
 
 ---
 
@@ -101,7 +103,7 @@ Pick a provider in **Settings** (or edit `backend/data/config.json`):
 |---|---|---|
 | `local_claude` | **Default.** Calls the local `claude` CLI via your subscription | ❌ no key |
 | `local_codex` | Calls the local `codex` CLI via your ChatGPT subscription | ❌ no key |
-| `anthropic` | Official Anthropic API | ✅ `api_key` |
+| `anthropic` | Anthropic API, or any Anthropic-compatible endpoint | ✅ `base_url` + `api_key` |
 | `openai` | Official OpenAI **or any OpenAI-compatible endpoint** | ✅ `base_url` + `api_key` |
 
 The `openai` entry can point at a **local vLLM** or **claude proxy** (e.g. `http://127.0.0.1:8899/v1`) for a fully-offline setup.

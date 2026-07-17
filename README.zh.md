@@ -12,7 +12,7 @@
 
 <p align="center"><sub><i>一束光，照亮一页论文 —— 就像在字里行间写下的旁注。</i></sub></p>
 
-<p align="center"><a href="./README.md"><b>English →</b></a></p>
+<p align="center"><a href="./README.md"><b>English →</b></a> · <a href="./CHANGELOG.md"><b>版本记录</b></a></p>
 
 ---
 
@@ -37,7 +37,8 @@ React / PDF.js 的阅读器界面，并驱动一个大模型帮你速览、研�
 | 🗺️ **思维导图 Mind Map** | 交互式 React Flow 导图：缩放、展开 / 折叠、点击节点看该节点的摘要与相互连接 |
 | 💬 **对话 Chat** | 像同事一样提问 —— 基于全篇 **BM25 检索（RAG）** 作答、**流式输出**、**每篇论文保留多个会话**、可删除、随时新建 |
 | 💡 **解释 Explain** | 选中一段公式 / 术语 / 表格，一次性解释清楚；数学用 **KaTeX** 渲染 |
-| 🌐 **翻译 Translate** | **逐句翻译**、结果 **持久缓存**、**跨页范围复用**；默认只显示中文，可切换 **显示原文对照** |
+| 🌐 **翻译 Translate** | **逐句翻译**、结果 **持久缓存**、**跨页范围复用**；默认只显示中文，可切换 **显示原文**；**点击译文可在 PDF 中闪烁定位**；arXiv 论文可 **直接翻译 LaTeX 源**，不漏文本 |
+| 📐 **arXiv LaTeX** | **TeX 源码标签**：读取论文 LaTeX 源（精确、无提取损失），并可从源翻译 |
 | 🖍️ **自动高亮 Auto-highlight** | AI 按类别挑出关键句，并 **锚定到 PDF 原文位置** 标色 |
 | ✍️ **批注 Highlights** | 你自己的高亮（多种颜色）+ 笔记，锚定在页面上并保存 |
 | 🔗 **参考文献 References** | 解析文末参考文献，经 **Crossref / arXiv** 补全，**每条可点击跳转** |
@@ -46,7 +47,8 @@ React / PDF.js 的阅读器界面，并驱动一个大模型帮你速览、研�
 | 🧩 **技能 Skills** | 发现并运行 **Claude / Codex 技能**，作用于当前论文 |
 | ➕ **加入会话** | 在 PDF 或各面板里选中内容 → 一键送入 Chat，让 AI 就这段内容回答 |
 | 🎨 **主题与阅读模式** | 内置 **7 套配色**，另有 PDF 阅读模式 —— **正常 / 护眼 / 夜间** |
-| 🗣️ **语言可配置** | AI **回答语言** 与 **翻译目标语言** 都可配置 |
+| 🗣️ **多语言** | **界面语言**（English / 中文，默认英文），以及 AI **回答语言** 与 **翻译目标语言** |
+| ⚙️ **体验** | 长任务切换标签也不中断；侧栏常驻，**滚动位置与思维导图视图都会保留**；每个提供方可 **测试连通性** |
 
 ---
 
@@ -100,7 +102,7 @@ GLOSS_PORT=6006 GLOSS_HOST=0.0.0.0 scripts/run.sh
 |---|---|---|
 | `local_claude` | **默认**。调用本机 `claude` CLI，走订阅登录 | ❌ 免 key |
 | `local_codex` | 调用本机 `codex` CLI，走 ChatGPT 订阅 | ❌ 免 key |
-| `anthropic` | 官方 Anthropic API | ✅ 填 `api_key` |
+| `anthropic` | Anthropic API，或任意 Anthropic 兼容端点 | ✅ 填 `base_url` + `api_key` |
 | `openai` | 官方 OpenAI **或任意 OpenAI 兼容端点** | ✅ 填 `base_url` + `api_key` |
 
 `openai` 可指向 **本地 vLLM** 或本地 **claude 代理**（如 `http://127.0.0.1:8899/v1`），完全离线用自己的模型。
