@@ -449,3 +449,6 @@ button.small { font-size: 12px; padding: 3px 8px; margin-top: 6px; }
 @keyframes flashpulse { 0% { opacity: 0; } 12% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
 .trans-cell.clickable { cursor: pointer; }
 .trans-cell.clickable:hover { border-color: var(--accent); }
+
+/* arXiv LaTeX source viewer */
+.tex-src { white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.55; color: var(--fg); background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow-x: auto; }

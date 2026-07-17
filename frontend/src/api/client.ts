@@ -160,6 +160,10 @@ export const api = {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ paper_id, page_start, page_end, language }),
     }).then((r) => j<{ sentences: TransSentence[] }>(r)),
+  getTex: (paper_id: string) =>
+    fetch(`/api/papers/${paper_id}/tex`).then((r) =>
+      j<{ available: boolean; reason?: string; main: string | null; files: { name: string; tex: string }[] }>(r),
+    ),
   locate: (paper_id: string, text: string) =>
     fetch(`/api/papers/${paper_id}/locate`, {
       method: "POST",

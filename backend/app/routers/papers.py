@@ -118,6 +118,28 @@ async def locate(paper_id: str, body: LocateBody):
     return loc or {"page": None, "rects": []}
 
 
+@router.get("/{paper_id}/tex")
+async def get_tex(paper_id: str):
+    """LaTeX source for an arXiv paper (cached). {available, files:[{name,tex}], main}."""
+    p = store.get_paper(paper_id)
+    if not p:
+        raise HTTPException(404, "paper not found")
+    arxiv_id = p.get("arxiv_id")
+    if not arxiv_id:
+        return {"available": False, "reason": "not an arXiv paper", "files": []}
+    cached = store.cache_get(paper_id, "tex")
+    if cached:
+        return cached
+    try:
+        res = await importers.fetch_arxiv_tex(arxiv_id)
+    except Exception as e:  # noqa: BLE001 — network/parse errors surface to the UI
+        return {"available": False, "reason": f"could not fetch arXiv source: {e}", "files": []}
+    out = {"available": bool(res["files"]), "main": res.get("main"), "files": res["files"]}
+    if out["available"]:
+        store.cache_set(paper_id, "tex", out)
+    return out
+
+
 @router.get("/{paper_id}/fulltext")
 async def get_fulltext(paper_id: str):
     parsed = store.load_parsed(paper_id)

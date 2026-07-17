@@ -48,6 +48,54 @@ async def fetch_arxiv(arxiv_id: str) -> tuple[dict, bytes]:
         return meta, resp.content
 
 
+async def fetch_arxiv_tex(arxiv_id: str) -> dict:
+    """Fetch the LaTeX source of an arXiv paper → {files: [{name, tex}], main}.
+
+    arXiv `e-print` is usually a gzipped tar of the source; sometimes a single
+    gzipped .tex, or (rare) raw text. We keep only the .tex/.bbl files.
+    """
+    import gzip
+    import io
+    import tarfile
+
+    url = f"https://arxiv.org/e-print/{arxiv_id}"
+    async with external_client(timeout=90) as client:
+        r = await client.get(url, follow_redirects=True)
+        r.raise_for_status()
+        data = r.content
+
+    files: dict[str, str] = {}
+    try:
+        with tarfile.open(fileobj=io.BytesIO(data), mode="r:*") as tar:
+            for m in tar.getmembers():
+                if m.isfile() and m.name.lower().endswith((".tex", ".bbl")):
+                    f = tar.extractfile(m)
+                    if f:
+                        files[m.name.lstrip("./")] = f.read().decode("utf-8", "replace")
+    except (tarfile.TarError, EOFError):
+        try:
+            files["main.tex"] = gzip.decompress(data).decode("utf-8", "replace")
+        except OSError:
+            try:
+                files["main.tex"] = data.decode("utf-8", "replace")
+            except Exception:
+                files = {}
+
+    if not files:
+        return {"files": [], "main": None}
+    # main = the file that has \documentclass or \begin{document}; else the largest
+    main = None
+    for name, tex in files.items():
+        if "\\documentclass" in tex or "\\begin{document}" in tex:
+            main = name
+            break
+    if not main:
+        main = max(files, key=lambda n: len(files[n]))
+    ordered = [{"name": main, "tex": files[main]}]
+    ordered += [{"name": n, "tex": t} for n, t in files.items() if n != main]
+    return {"files": ordered, "main": main}
+
+
 async def fetch_pdf_url(url: str) -> tuple[dict, bytes]:
     async with external_client(timeout=60) as client:
         resp = await client.get(url)

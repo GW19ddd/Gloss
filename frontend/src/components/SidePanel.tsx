@@ -11,14 +11,16 @@ import { SkillsPanel } from "./SkillsPanel";
 import { SettingsPanel } from "./SettingsPanel";
 import { MindMapPanel } from "./MindMapPanel";
 import { NotesPanel } from "./NotesPanel";
+import { TexPanel } from "./TexPanel";
 
-const TABS: { id: string; en: string; zh: string; C: () => JSX.Element }[] = [
+const TABS: { id: string; en: string; zh: string; C: () => JSX.Element; arxivOnly?: boolean }[] = [
   { id: "summary", en: "Summary", zh: "速览", C: SummaryPanel },
   { id: "notes", en: "Notes", zh: "笔记", C: NotesPanel },
   { id: "mindmap", en: "Mind Map", zh: "思维导图", C: MindMapPanel },
   { id: "chat", en: "Chat", zh: "对话", C: ChatPanel },
   { id: "explain", en: "Explain", zh: "解释", C: ExplainPanel },
   { id: "translate", en: "Translate", zh: "翻译", C: TranslatePanel },
+  { id: "tex", en: "TeX", zh: "TeX 源码", C: TexPanel, arxivOnly: true },
   { id: "highlights", en: "Highlights", zh: "高亮", C: HighlightsPanel },
   { id: "references", en: "References", zh: "参考文献", C: ReferencesPanel },
   { id: "scholar", en: "Scholar", zh: "学术", C: ScholarPanel },
@@ -31,7 +33,10 @@ export function SidePanel() {
   const setTab = useStore((s) => s.setTab);
   const askAboutText = useStore((s) => s.askAboutText);
   const uiLang = useStore((s) => s.uiLang);
+  const current = useStore((s) => s.current);
   const [ask, setAsk] = useState<{ x: number; y: number; text: string } | null>(null);
+  // TeX tab only for arXiv papers (they have LaTeX source)
+  const tabs = TABS.filter((t) => !t.arxivOnly || !!current?.arxiv_id);
 
   function onMouseUp(e: React.MouseEvent) {
     // don't offer "add to chat" from within the chat/settings tabs themselves
@@ -44,7 +49,7 @@ export function SidePanel() {
   return (
     <div className="side-panel">
       <div className="tabs">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.id}
             className={"tab" + (activeTab === t.id ? " active" : "")}
@@ -57,7 +62,7 @@ export function SidePanel() {
       {/* Every panel stays mounted (hidden when inactive) so scroll position,
           mind-map pan/zoom, and in-flight work are preserved across tab switches. */}
       <div className="tab-content" onMouseUp={onMouseUp} onMouseDown={() => setAsk(null)}>
-        {TABS.map((t) => {
+        {tabs.map((t) => {
           const C = t.C;
           return (
             <div key={t.id} className="tab-pane" style={{ display: activeTab === t.id ? "flex" : "none" }}>
