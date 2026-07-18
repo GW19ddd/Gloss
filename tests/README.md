@@ -1,10 +1,9 @@
 # Tests
 
-Black-box tests for Gloss-Local. They drive the app **only through its public
-HTTP API** (`/api/*`) — the same surface the web UI and the `./moonlight` CLI use
-— and never import or assert on internal implementation modules. Each test starts
-the FastAPI app in-process with `TestClient`, uploads a synthesised PDF, and
-checks status codes, response shapes, and end-to-end behaviour.
+Tests for Gloss. Most drive the app through its public HTTP API (`/api/*`), the
+same surface used by the web UI and CLI. Small unit tests cover platform-specific
+paths, command resolution, and launchers. API tests start FastAPI in-process with
+`TestClient`, upload a synthesised PDF, and check end-to-end behaviour.
 
 ## Layout
 
@@ -20,18 +19,26 @@ checks status codes, response shapes, and end-to-end behaviour.
 | `test_validation.py` | 4xx (never 5xx) on malformed requests |
 | `test_llm_endpoints.py` | *(gated)* summarize / notes / mind-map / explain / translate / chat / auto-highlight |
 | `test_network_endpoints.py` | *(gated)* scholar search, reference resolution |
+| `test_platform_support.py` | Windows/Linux data paths and local CLI command resolution |
+| `test_cross_platform_entrypoints.py` | npm/Bun entrypoints and native wrappers |
 
 ## Isolation
 
 `GLOSS_DATA_DIR` is pointed at a fresh temp directory **before the app is
 imported**, so the SQLite DB, uploaded PDFs and `config.json` all live in a
-throwaway location — the real library under `backend/data/` is never touched.
+throwaway location — the real user library is never touched.
 
 ## Running
 
 ```bash
-# From the repo root, using the backend venv:
+# Linux, from the repo root:
 backend/.venv/bin/python -m pytest -v
+
+# Windows PowerShell:
+backend\.venv\Scripts\python.exe -m pytest -v
+
+# Or on either platform (also rebuilds the frontend):
+npm test
 
 # Deterministic tests only run by default. To also exercise the provider-backed
 # and network-backed endpoints:
@@ -44,6 +51,6 @@ Only `pytest` is an extra dependency (`tests/requirements.txt`); everything else
 
 ## CI
 
-`.github/workflows/ci.yml` runs the deterministic subset on every push/PR (no
-provider, no API key, no network) plus a frontend `npm run build`. The gated
+`.github/workflows/ci.yml` runs the deterministic subset on Windows and Linux
+for every push/PR (no provider, no API key, no network), plus a frontend build. The gated
 `llm` / `network` tests stay skipped in CI.

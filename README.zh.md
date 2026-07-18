@@ -52,14 +52,76 @@ React / PDF.js 的阅读器界面，并驱动一个大模型帮你速览、研�
 
 ---
 
-## 🚀 运行（Linux）
+## 🚀 安装与运行（Windows / Linux）
 
-```bash
-scripts/setup.sh     # 首次：建后端 venv + 装依赖，装前端依赖并 build
-scripts/run.sh       # 在 :8010 提供服务（前端已构建 + API，一个进程一个端口）
+### 最省事：交给 Claude Code 或 Codex 😄
+
+在终端中打开 Claude Code 或 Codex，把下面这段提示词直接交给它：
+
+```text
+请在这台电脑上安装并运行 https://github.com/computersniper/gloss。
+先识别系统是 Windows 还是 Linux，并使用适合当前系统的命令。如果仓库尚未存在，
+请先 clone；如果当前已经在仓库中，请直接使用当前工作区，不要覆盖本地修改。
+检查 Node.js 18+ 和 Python 3.11+；如缺少系统级依赖，先询问我再安装。
+默认使用 npm（也支持 Bun），执行项目的 setup 命令并启动 Gloss，确认
+GET /api/health 返回 HTTP 200，最后告诉我本地访问地址。保留已有的 Gloss 数据和配置。
 ```
 
-启动后浏览器打开 **`http://<host>:8010`**，粘贴一个 arXiv id（例如 `1706.03762`）或上传 PDF，点开卡片就能读。
+安装和启动命令可以都交给它执行；为了方便检查和排错，下面仍给出完整的手动步骤。
+
+### 手动安装
+
+#### 1. 准备环境并获取源码
+
+先安装 Git、Node.js 18+ 和 Python 3.11+，然后克隆仓库：
+
+```bash
+git clone https://github.com/computersniper/gloss.git
+cd gloss
+node --version
+python --version
+```
+
+Windows 也可以用 `py --version`。如果 Python 位于自定义路径，可设置
+`GLOSS_PYTHON`，或给 setup 命令传入 `--python <路径>`。
+
+#### 2. 安装依赖并启动
+
+PowerShell、命令提示符和 Bash 都可以使用同一套 npm 命令：
+
+```bash
+npm run setup        # 首次：创建后端 venv、安装依赖、构建前端
+npm start            # 在 :8010 启动应用
+npm run dev          # 可选：后端和前端热重载
+```
+
+也可以使用 Bun：
+
+```bash
+bun run setup
+bun run start
+bun run dev           # 可选：热重载
+```
+
+#### 3. 系统原生脚本（可选）
+
+项目也提供系统原生包装脚本：
+
+```bash
+# Linux
+scripts/setup.sh
+scripts/run.sh
+
+# Windows PowerShell
+.\scripts\setup.ps1
+.\scripts\run.ps1
+```
+
+#### 4. 验证并打开
+
+浏览器打开 **`http://localhost:8010`**（也可以运行
+`curl http://localhost:8010/api/health`），粘贴一个 arXiv id（例如 `1706.03762`）
+或上传 PDF，点开卡片就能读。
 
 端口 / 监听地址可用环境变量覆盖：
 
@@ -69,19 +131,34 @@ GLOSS_PORT=6006 GLOSS_HOST=0.0.0.0 scripts/run.sh
 
 - `GLOSS_PORT` —— 服务端口（默认 `8010`）
 - `GLOSS_HOST` —— 监听地址（默认 `0.0.0.0`）
-- `GLOSS_DATA_DIR` —— 数据目录（默认 `backend/data`）
+- `GLOSS_DATA_DIR` —— 覆盖数据目录
+- `GLOSS_CACHE_DIR` —— 覆盖依赖和下载缓存目录
+- `GLOSS_IMPORT_TIMEOUT` —— 下载论文的等待秒数（默认/上限 `120`）
+- `GLOSS_IMPORT_PARSE_TIMEOUT` —— 解析 PDF 的等待秒数（默认/上限 `120`）
+- `GLOSS_LEGACY_ENCODING` —— 数据跨 Windows 区域设置迁移后，用指定编码读取
+  旧版非 UTF-8 配置和论文元数据（例如 `cp936` 或 `cp1252`）
+
+默认会把持久数据放到操作系统规范的应用数据目录：
+
+- Windows：`%LOCALAPPDATA%\Gloss\data`
+- Linux：`$XDG_DATA_HOME/gloss`，未设置时为 `~/.local/share/gloss`
+
+缓存默认位于 Windows 的 `%LOCALAPPDATA%\Gloss\cache`，或 Linux 的
+`$XDG_CACHE_HOME/gloss`（未设置时为 `~/.cache/gloss`）。若升级前已有非空的
+`backend/data`，为避免丢失旧数据，程序会继续使用它。
 
 服务监听在 `0.0.0.0`，从别的电脑访问可用服务商的端口映射或 SSH 转发
 （如 `ssh -CNg -L <端口>:127.0.0.1:<端口> -p <SSH端口> user@host`，然后打开 `http://localhost:<端口>`）。
 
-> 想热重载调试用 `scripts/dev.sh`（后端 uvicorn `--reload` :8010 + Vite 开发服务器 :5173，自动代理 `/api`）。
+> 也可以直接传参数，例如 `npm start -- --port 6006 --host 127.0.0.1`。
 
 ---
 
 ## 🧰 CLI
 
 ```bash
-./gloss serve                  # 启动 web 应用（打印访问地址）
+./gloss serve                  # Linux/macOS：启动 web 应用
+.\gloss.ps1 serve              # Windows PowerShell
 ./gloss open <pdf|arxiv|doi>   # 导入 + 启动服务 + 打开浏览器
 ./gloss import <src>           # 把本地 PDF / arXiv / DOI 加入论文库
 ./gloss ls                     # 列出论文库
@@ -96,7 +173,7 @@ GLOSS_PORT=6006 GLOSS_HOST=0.0.0.0 scripts/run.sh
 
 ## 🤖 AI 提供方与进阶设置
 
-在 **Settings** 里选 provider（或改 `backend/data/config.json`）：
+在 **Settings** 里选择 provider（生成的 `config.json` 位于数据目录中）：
 
 | Provider | 说明 | 需要 key？ |
 |---|---|---|
@@ -109,7 +186,7 @@ GLOSS_PORT=6006 GLOSS_HOST=0.0.0.0 scripts/run.sh
 
 **进阶设置**（每个 provider 可单独配）：模型（如 `sonnet` / `opus`、完整 model id，或留空用 CLI 默认）与
 **思考深度 / reasoning effort**（`local_claude`：`low … max`；`local_codex`：`minimal … high`）。**回答语言** 与
-**翻译目标语言** 也都可配（默认均为中文）。key 会被 Settings API 掩码，`backend/data/` 已 gitignore，不进版本库。
+**翻译目标语言** 也都可配（默认均为中文）。key 会被 Settings API 掩码，运行时数据目录不进入版本库。
 
 ---
 
@@ -125,11 +202,11 @@ backend/          FastAPI（一个进程挂载所有 /api/*，并托管已构建
   app/library/    SQLite 库 + 导入器（arXiv/DOI/PDF）
   app/routers/    papers · ai · citations · scholar · annotations · skills · settings
 frontend/         React + Vite + pdfjs-dist + KaTeX + React Flow（build 到 frontend/dist，由后端托管）
-cli/ gloss.py     scripts/ setup.sh · run.sh · dev.sh
+cli/ gloss.py     scripts/ gloss.mjs · setup/run/dev（.sh + .ps1）
 ```
 
-**数据** 都在 `backend/data/`：一个 SQLite 库（papers / highlights / chats / messages / refs / cache）
-+ 每篇论文一个目录，含 `original.pdf` 与解析后的 `parsed.json`。
+**数据** 位于上文所述的系统数据目录：一个 SQLite 库，加上每篇论文的目录，
+其中包含 `original.pdf` 与解析后的 `parsed.json`。
 
 ---
 
@@ -137,7 +214,7 @@ cli/ gloss.py     scripts/ setup.sh · run.sh · dev.sh
 
 - **本地 `claude` / `codex` 独立运行**：走你已有的订阅登录（无需 API key），每次回答只针对当前论文，
   不会和你个人的 Claude / Codex 配置混在一起。
-- **数据都在本地**：论文、批注、笔记、对话都存在本地 SQLite 库与每篇论文的文件里（`backend/data/`）；
+- **数据都在本地**：论文、批注、笔记、对话都存在系统数据目录中的 SQLite 库与每篇论文的文件里；
   除下面的外部检索外，数据不出你的机器。
 - **外部检索优雅降级**：References、Scholar 等外网请求统一走机器的 HTTP 代理；某个站点连不上（离线）时会
   **优雅降级** 到本地已解析数据，不会整页报错。

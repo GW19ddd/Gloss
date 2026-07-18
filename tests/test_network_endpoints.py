@@ -23,3 +23,17 @@ def test_references_resolve_enriches(client, paper_id):
     r = client.post(f"/api/papers/{paper_id}/references/resolve", json={})
     assert r.status_code == 200
     assert "references" in r.json()
+
+
+def test_arxiv_url_import_completes(client):
+    response = client.post(
+        "/api/papers/import",
+        json={"query": "https://arxiv.org/abs/1706.03762"},
+    )
+    assert response.status_code == 200, response.text
+    paper = response.json()
+    try:
+        assert paper["title"]
+        assert paper["n_pages"] > 0
+    finally:
+        client.delete(f"/api/papers/{paper['id']}")

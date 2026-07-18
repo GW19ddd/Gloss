@@ -1,6 +1,9 @@
 """Library / paper endpoints: import, list, read, delete."""
 from __future__ import annotations
 
+import asyncio
+import os
+
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
@@ -10,6 +13,18 @@ from ..library import importers, service, store
 from ..pdf import ingest, structure
 
 router = APIRouter(prefix="/api/papers", tags=["papers"])
+
+
+def _bounded_import_timeout(name: str) -> float:
+    try:
+        configured = float(os.environ.get(name, "120"))
+    except ValueError:
+        configured = 120
+    return max(1, min(configured, 120))
+
+
+IMPORT_DOWNLOAD_TIMEOUT = _bounded_import_timeout("GLOSS_IMPORT_TIMEOUT")
+IMPORT_PARSE_TIMEOUT = _bounded_import_timeout("GLOSS_IMPORT_PARSE_TIMEOUT")
 
 
 class ImportBody(BaseModel):
@@ -45,13 +60,34 @@ async def upload_paper(file: UploadFile = File(...)):
 @router.post("/import")
 async def import_paper(body: ImportBody):
     try:
-        meta, pdf = await importers.import_source(body.model_dump(exclude_none=True))
+        meta, pdf = await asyncio.wait_for(
+            importers.import_source(body.model_dump(exclude_none=True)),
+            timeout=IMPORT_DOWNLOAD_TIMEOUT,
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            504,
+            f"Import timed out after {IMPORT_DOWNLOAD_TIMEOUT:g}s while downloading the paper",
+        )
     except ValueError as e:
         raise HTTPException(400, str(e))
     except Exception as e:  # network / http errors
         raise HTTPException(502, f"Import failed: {e}")
     try:
-        paper = await run_in_threadpool(service.create_from_pdf_bytes, pdf, meta)
+        parsed = await run_in_threadpool(
+            service.parse_pdf_bytes_with_timeout,
+            pdf,
+            IMPORT_PARSE_TIMEOUT,
+        )
+    except TimeoutError:
+        raise HTTPException(
+            504,
+            f"Import timed out after {IMPORT_PARSE_TIMEOUT:g}s while parsing the PDF",
+        )
+    try:
+        paper = await run_in_threadpool(
+            service.create_from_pdf_bytes, pdf, meta, parsed
+        )
     except ValueError as e:
         raise HTTPException(400, str(e))
     return paper

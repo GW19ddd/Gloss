@@ -13,6 +13,11 @@ import tempfile
 from typing import AsyncIterator
 
 from ..config import ensure_claude_sandbox, load_config
+from ..platform_support import (
+    resolve_cli_command,
+    subprocess_group_options,
+    terminate_process_tree,
+)
 from .base import Message, Provider, render_transcript
 
 CLAUDE_SHORT = ("sonnet", "opus", "haiku", "fable")
@@ -23,6 +28,8 @@ def _sandbox_env() -> tuple[dict, str]:
     sb = ensure_claude_sandbox()
     env = os.environ.copy()
     env["HOME"] = str(sb)
+    if os.name == "nt":
+        env["USERPROFILE"] = str(sb)
     return env, str(sb)
 
 
@@ -50,8 +57,8 @@ class LocalClaudeProvider(Provider):
     ) -> tuple[str, dict]:
         prompt = render_transcript(messages)
         model = _pick_model(model)
-        cmd = [
-            "claude", "-p",
+        cmd = resolve_cli_command("claude") + [
+            "-p",
             "--output-format", "json",
             "--no-session-persistence",
             "--tools", "",
@@ -60,11 +67,12 @@ class LocalClaudeProvider(Provider):
         if _effort():
             cmd += ["--effort", _effort()]
         tmp_path = None
+        proc = None
         try:
             if system:
                 # argv is capped ~128KB; papers easily exceed that -> use a file
                 fd, tmp_path = tempfile.mkstemp(prefix="gloss-sys-", suffix=".txt")
-                with os.fdopen(fd, "w") as f:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
                     f.write(system)
                 cmd += ["--system-prompt-file", tmp_path]
 
@@ -76,13 +84,14 @@ class LocalClaudeProvider(Provider):
                 stderr=asyncio.subprocess.PIPE,
                 env=env,
                 cwd=cwd,
+                **subprocess_group_options(),
             )
             try:
                 out, err = await asyncio.wait_for(
                     proc.communicate(prompt.encode()), timeout=_timeout()
                 )
             except asyncio.TimeoutError:
-                proc.kill()
+                await terminate_process_tree(proc)
                 raise RuntimeError(f"claude CLI timed out after {_timeout()}s")
 
             if proc.returncode != 0:
@@ -102,6 +111,8 @@ class LocalClaudeProvider(Provider):
             norm["total_tokens"] = norm["prompt_tokens"] + norm["completion_tokens"]
             return data.get("result", ""), norm
         finally:
+            if proc is not None and proc.returncode is None:
+                await terminate_process_tree(proc)
             if tmp_path:
                 try:
                     os.unlink(tmp_path)
@@ -114,8 +125,8 @@ class LocalClaudeProvider(Provider):
         """True token streaming via `--output-format stream-json`, with fallback."""
         prompt = render_transcript(messages)
         model = _pick_model(model)
-        cmd = [
-            "claude", "-p",
+        cmd = resolve_cli_command("claude") + [
+            "-p",
             "--output-format", "stream-json",
             "--include-partial-messages",
             "--verbose",
@@ -126,11 +137,12 @@ class LocalClaudeProvider(Provider):
         if _effort():
             cmd += ["--effort", _effort()]
         tmp_path = None
+        proc = None
         streamed_any = False
         try:
             if system:
                 fd, tmp_path = tempfile.mkstemp(prefix="gloss-sys-", suffix=".txt")
-                with os.fdopen(fd, "w") as f:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
                     f.write(system)
                 cmd += ["--system-prompt-file", tmp_path]
 
@@ -142,6 +154,7 @@ class LocalClaudeProvider(Provider):
                 stderr=asyncio.subprocess.PIPE,
                 env=env,
                 cwd=cwd,
+                **subprocess_group_options(),
             )
             proc.stdin.write(prompt.encode())
             await proc.stdin.drain()
@@ -170,6 +183,8 @@ class LocalClaudeProvider(Provider):
         except (FileNotFoundError, RuntimeError):
             streamed_any = False
         finally:
+            if proc is not None and proc.returncode is None:
+                await terminate_process_tree(proc)
             if tmp_path:
                 try:
                     os.unlink(tmp_path)

@@ -73,7 +73,7 @@ def discover_skills() -> list[dict]:
             continue
         for skill_md in root.rglob("SKILL.md"):
             try:
-                text = skill_md.read_text(errors="ignore")
+                text = skill_md.read_text(encoding="utf-8", errors="ignore")
             except OSError:
                 continue
             meta, _ = _frontmatter(text)
@@ -106,7 +106,7 @@ def discover_skills() -> list[dict]:
         globber = root.rglob("commands/*.md") if root.name == "plugins" else root.glob("*.md")
         for cmd_md in globber:
             try:
-                text = cmd_md.read_text(errors="ignore")
+                text = cmd_md.read_text(encoding="utf-8", errors="ignore")
             except OSError:
                 continue
             meta, _ = _frontmatter(text)
@@ -127,5 +127,5 @@ def discover_skills() -> list[dict]:
 
 def load_skill_body(path: str) -> tuple[dict, str]:
     """Return (frontmatter, body) for a skill/command file."""
-    text = Path(path).read_text(errors="ignore")
+    text = Path(path).read_text(encoding="utf-8", errors="ignore")
     return _frontmatter(text)

@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from ..config import DB_PATH, PAPERS_DIR
+from ..platform_support import read_utf8_text
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS papers (
@@ -123,12 +124,14 @@ def parsed_path(paper_id: str) -> Path:
 def load_parsed(paper_id: str) -> dict | None:
     p = parsed_path(paper_id)
     if p.exists():
-        return json.loads(p.read_text())
+        return json.loads(read_utf8_text(p))
     return None
 
 
 def save_parsed(paper_id: str, parsed: dict) -> None:
-    parsed_path(paper_id).write_text(json.dumps(parsed, ensure_ascii=False))
+    parsed_path(paper_id).write_text(
+        json.dumps(parsed, ensure_ascii=False), encoding="utf-8"
+    )
 
 
 def create_paper(meta: dict[str, Any]) -> str:

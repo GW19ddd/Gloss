@@ -13,6 +13,11 @@ import tempfile
 from typing import AsyncIterator
 
 from ..config import ensure_codex_sandbox, load_config
+from ..platform_support import (
+    resolve_cli_command,
+    subprocess_group_options,
+    terminate_process_tree,
+)
 from .base import Message, Provider, render_transcript
 
 
@@ -38,8 +43,8 @@ class LocalCodexProvider(Provider):
 
         fd, out_path = tempfile.mkstemp(prefix="gloss-codex-", suffix=".txt")
         os.close(fd)
-        cmd = [
-            "codex", "exec",
+        cmd = resolve_cli_command("codex") + [
+            "exec",
             "--skip-git-repo-check",
             "--ephemeral",
             "-s", "read-only",
@@ -51,24 +56,26 @@ class LocalCodexProvider(Provider):
         if effort:
             cmd += ["-c", f"model_reasoning_effort={effort}"]
 
+        proc = None
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                **subprocess_group_options(),
             )
             try:
                 _, err = await asyncio.wait_for(
                     proc.communicate(prompt.encode()), timeout=timeout
                 )
             except asyncio.TimeoutError:
-                proc.kill()
+                await terminate_process_tree(proc)
                 raise RuntimeError(f"codex CLI timed out after {timeout}s")
             if proc.returncode != 0:
                 raise RuntimeError(f"codex CLI exited {proc.returncode}: {err.decode()[:2000]}")
             try:
-                with open(out_path, "r") as f:
+                with open(out_path, "r", encoding="utf-8") as f:
                     text = f.read().strip()
             except OSError:
                 text = ""
@@ -76,6 +83,8 @@ class LocalCodexProvider(Provider):
                 raise RuntimeError("codex CLI produced no output")
             return text, {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
         finally:
+            if proc is not None and proc.returncode is None:
+                await terminate_process_tree(proc)
             try:
                 os.unlink(out_path)
             except OSError:

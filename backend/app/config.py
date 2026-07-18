@@ -1,28 +1,36 @@
-"""Configuration + on-disk paths for Gloss-Local.
-
-Everything lives under the project's ``backend/data`` dir (which sits on the fast
-data disk via the project symlink). Provider settings are persisted to
-``data/config.json`` and edited from the Settings UI / CLI.
-"""
+"""Configuration and platform-appropriate on-disk paths for Gloss."""
 from __future__ import annotations
 
 import json
 import os
+import shutil
+import sys
 import threading
 from pathlib import Path
 from typing import Any
+
+from .platform_support import default_cache_dir, read_utf8_text, resolve_data_dir
 
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
 _BACKEND_DIR = Path(__file__).resolve().parent.parent          # backend/
-DATA_DIR = Path(os.environ.get("GLOSS_DATA_DIR", _BACKEND_DIR / "data")).resolve()
+_LEGACY_DATA_DIR = _BACKEND_DIR / "data"
+DATA_DIR, USING_LEGACY_DATA_DIR = resolve_data_dir(
+    sys.platform,
+    os.environ,
+    Path.home(),
+    _LEGACY_DATA_DIR,
+)
+CACHE_DIR = Path(
+    os.environ.get("GLOSS_CACHE_DIR", default_cache_dir())
+).expanduser().resolve()
 PAPERS_DIR = DATA_DIR / "papers"
 UPLOADS_DIR = DATA_DIR / "uploads"
 DB_PATH = DATA_DIR / "moonlight.db"
 CONFIG_PATH = DATA_DIR / "config.json"
 
-for _d in (DATA_DIR, PAPERS_DIR, UPLOADS_DIR):
+for _d in (DATA_DIR, CACHE_DIR, PAPERS_DIR, UPLOADS_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
 # Directory served as the built frontend (populated by `vite build`).
@@ -36,7 +44,7 @@ FRONTEND_DIST = (_BACKEND_DIR.parent / "frontend" / "dist").resolve()
 # HOME that symlinks ONLY the auth files (credentials + config), so it keeps the
 # subscription (OAuth) but sees no CLAUDE.md / memory / settings.
 # ---------------------------------------------------------------------------
-CLAUDE_SANDBOX_HOME = (_BACKEND_DIR.parent / ".claude-home").resolve()
+CLAUDE_SANDBOX_HOME = (CACHE_DIR / "claude-home").resolve()
 
 
 def ensure_claude_sandbox() -> Path:
@@ -48,20 +56,33 @@ def ensure_claude_sandbox() -> Path:
     sb = CLAUDE_SANDBOX_HOME
     (sb / ".claude").mkdir(parents=True, exist_ok=True)
 
-    def _link(src: Path, dst: Path) -> None:
+    def _link_or_copy(src: Path, dst: Path) -> None:
+        if not src.exists():
+            return
+        if dst.is_symlink():
+            return
+        if dst.exists():
+            try:
+                shutil.copy2(src, dst)
+            except OSError:
+                pass
+            return
         try:
-            if src.exists() and not dst.exists():
+            if not dst.exists():
                 dst.symlink_to(src)
         except OSError:
-            pass
+            try:
+                shutil.copy2(src, dst)
+            except OSError:
+                pass
 
-    _link(real_home / ".claude" / ".credentials.json", sb / ".claude" / ".credentials.json")
-    _link(real_home / ".claude.json", sb / ".claude.json")
+    _link_or_copy(real_home / ".claude" / ".credentials.json", sb / ".claude" / ".credentials.json")
+    _link_or_copy(real_home / ".claude.json", sb / ".claude.json")
     return sb
 
 
 # Clean working dir for the `codex exec` subprocess (no AGENTS.md to leak).
-CODEX_SANDBOX = (_BACKEND_DIR.parent / ".codex-sandbox").resolve()
+CODEX_SANDBOX = (CACHE_DIR / "codex-sandbox").resolve()
 
 
 def ensure_codex_sandbox() -> Path:
@@ -133,8 +154,8 @@ def load_config() -> dict[str, Any]:
     """Return the persisted config merged over defaults (so new keys appear)."""
     if CONFIG_PATH.exists():
         try:
-            user = json.loads(CONFIG_PATH.read_text())
-        except (json.JSONDecodeError, OSError):
+            user = json.loads(read_utf8_text(CONFIG_PATH))
+        except (json.JSONDecodeError, OSError, UnicodeError):
             user = {}
     else:
         user = {}
@@ -145,7 +166,9 @@ def save_config(cfg: dict[str, Any]) -> dict[str, Any]:
     """Persist config (merged over the current one) and return the result."""
     with _lock:
         merged = _deep_merge(load_config(), cfg)
-        CONFIG_PATH.write_text(json.dumps(merged, indent=2, ensure_ascii=False))
+        CONFIG_PATH.write_text(
+            json.dumps(merged, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
     return merged
 
 

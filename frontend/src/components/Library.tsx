@@ -11,21 +11,21 @@ export function Library() {
   const uiLang = useStore((s) => s.uiLang);
   const T = {
     en: {
-      tagline: "Annotate your papers with light · a local AI paper-reading companion, powered by your local Claude.",
+      tagline: "Annotate your papers with light · a local AI paper-reading companion, powered by Claude, Codex, or your preferred AI provider.",
       placeholder: "arXiv id / URL / DOI  (e.g. 1706.03762)",
       import: "Import",
       upload: "Upload PDF",
-      working: "Working…",
+      working: "Downloading and parsing… this usually takes about a minute.",
       empty: "No papers yet — import an arXiv id or upload a PDF.",
       confirmDelete: "Delete this paper?",
       pages: (n: number) => `${n}p`,
     },
     zh: {
-      tagline: "照亮论文的批注 · 本地 AI 论文阅读助手，默认接入本地 Claude。",
+      tagline: "照亮论文的批注 · 本地 AI 论文阅读助手，由 Claude、Codex 或你选择的 AI 提供方驱动。",
       placeholder: "arXiv 编号 / 链接 / DOI  (例如 1706.03762)",
       import: "导入",
       upload: "上传 PDF",
-      working: "处理中…",
+      working: "正在下载并解析…通常需要约一分钟。",
       empty: "还没有论文 — 导入 arXiv 编号或上传 PDF。",
       confirmDelete: "删除这篇论文？",
       pages: (n: number) => `${n} 页`,

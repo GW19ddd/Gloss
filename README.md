@@ -53,14 +53,77 @@ Everything runs on your own machine: one process, one port, open a browser and r
 
 ---
 
-## 🚀 Run it (Linux)
+## 🚀 Install & run (Windows / Linux)
 
-```bash
-scripts/setup.sh     # first time only: create backend venv + install deps, install & build the frontend
-scripts/run.sh       # serve the app on :8010 (built frontend + API — one process, one port)
+### Easiest: hand it to Claude Code or Codex
+
+Open Claude Code or Codex in a terminal and paste this prompt:
+
+```text
+Install and run https://github.com/computersniper/gloss on this computer.
+Detect whether the system is Windows or Linux and adapt every command accordingly.
+If the repository is not present, clone it; otherwise use the current checkout without
+overwriting local changes. Check for Node.js 18+ and Python 3.11+, and ask before
+installing missing system-level prerequisites. Use npm by default (Bun is also supported),
+run the project's setup command, start Gloss, verify GET /api/health returns HTTP 200,
+and tell me the local URL. Preserve any existing Gloss data and configuration.
 ```
 
-Then open **`http://<host>:8010`**, paste an arXiv id (e.g. `1706.03762`) or upload a PDF, and start reading.
+The agent can handle the commands; the complete manual steps are below for transparency
+and troubleshooting.
+
+### Manual installation
+
+#### 1. Prerequisites and source
+
+Install Git, Node.js 18+, and Python 3.11+, then clone the repository:
+
+```bash
+git clone https://github.com/computersniper/gloss.git
+cd gloss
+node --version
+python --version
+```
+
+On Windows, `py --version` also works. If Python is installed in a custom location,
+set `GLOSS_PYTHON` or pass `--python <path>` to the setup command.
+
+#### 2. Install dependencies and start
+
+The same npm commands work in PowerShell, Command Prompt, and Bash:
+
+```bash
+npm run setup        # first time only: backend venv + dependencies + frontend build
+npm start            # serve the app on :8010
+npm run dev          # optional: backend and frontend hot reload
+```
+
+Or use Bun:
+
+```bash
+bun run setup
+bun run start
+bun run dev           # optional: hot reload
+```
+
+#### 3. Native wrappers (optional)
+
+Platform-native wrappers are also included:
+
+```bash
+# Linux
+scripts/setup.sh
+scripts/run.sh
+
+# Windows PowerShell
+.\scripts\setup.ps1
+.\scripts\run.ps1
+```
+
+#### 4. Verify and open
+
+Open **`http://localhost:8010`** (or run `curl http://localhost:8010/api/health`),
+paste an arXiv id such as `1706.03762` or upload a PDF, and start reading.
 
 Port / host are overridable via environment variables:
 
@@ -70,19 +133,34 @@ GLOSS_PORT=6006 GLOSS_HOST=0.0.0.0 scripts/run.sh
 
 - `GLOSS_PORT` — service port (default `8010`)
 - `GLOSS_HOST` — bind address (default `0.0.0.0`)
-- `GLOSS_DATA_DIR` — data directory (default `backend/data`)
+- `GLOSS_DATA_DIR` — override the data directory
+- `GLOSS_CACHE_DIR` — override dependency/download caches
+- `GLOSS_IMPORT_TIMEOUT` — paper-download deadline in seconds (default/max `120`)
+- `GLOSS_IMPORT_PARSE_TIMEOUT` — PDF-parsing deadline in seconds (default/max `120`)
+- `GLOSS_LEGACY_ENCODING` — decode pre-UTF-8 config/paper metadata after moving
+  data between Windows locales (for example, `cp936` or `cp1252`)
+
+By default, persistent data uses the operating system's standard application-data location:
+
+- Windows: `%LOCALAPPDATA%\Gloss\data`
+- Linux: `$XDG_DATA_HOME/gloss`, or `~/.local/share/gloss`
+
+Caches use `%LOCALAPPDATA%\Gloss\cache` on Windows and `$XDG_CACHE_HOME/gloss`
+(or `~/.cache/gloss`) on Linux. An existing non-empty `backend/data` directory is
+kept automatically for backward compatibility.
 
 The server listens on `0.0.0.0`, so from another machine reach it via your provider's port mapping or an
 SSH tunnel (e.g. `ssh -CNg -L <port>:127.0.0.1:<port> -p <ssh-port> user@host`, then open `http://localhost:<port>`).
 
-> For hot-reload development use `scripts/dev.sh` (uvicorn `--reload` on :8010 + Vite dev server on :5173 proxying `/api`).
+> You can also pass options directly, for example `npm start -- --port 6006 --host 127.0.0.1`.
 
 ---
 
 ## 🧰 CLI
 
 ```bash
-./gloss serve                  # start the web app (prints the URL)
+./gloss serve                  # Linux/macOS: start the web app
+.\gloss.ps1 serve              # Windows PowerShell
 ./gloss open <pdf|arxiv|doi>   # import + serve + open the browser
 ./gloss import <src>           # add a local PDF / arXiv / DOI to the library
 ./gloss ls                     # list the library
@@ -97,7 +175,7 @@ For example: `./gloss open 1706.03762` opens *Attention Is All You Need* and lau
 
 ## 🤖 AI providers & advanced settings
 
-Pick a provider in **Settings** (or edit `backend/data/config.json`):
+Pick a provider in **Settings** (the generated `config.json` is stored in the data directory):
 
 | Provider | Notes | Key? |
 |---|---|---|
@@ -111,7 +189,7 @@ The `openai` entry can point at a **local vLLM** or **claude proxy** (e.g. `http
 **Advanced (per provider):** model (e.g. `sonnet` / `opus`, a full model id, or blank for the CLI's default) and
 **reasoning effort** (`local_claude`: `low … max`; `local_codex`: `minimal … high`). **Answer language** and
 **translation target language** are also configurable (both default to Simplified Chinese). Keys are masked by the
-Settings API and `backend/data/` is gitignored, so secrets never enter version control.
+Settings API and runtime data directories are outside version control, so secrets never enter the repository.
 
 ---
 
@@ -127,11 +205,11 @@ backend/          FastAPI (one process mounts every /api/*, and serves the built
   app/library/    SQLite store + importers (arXiv/DOI/PDF)
   app/routers/    papers · ai · citations · scholar · annotations · skills · settings
 frontend/         React + Vite + pdfjs-dist + KaTeX + React Flow (built to frontend/dist, served by the backend)
-cli/ gloss.py     scripts/ setup.sh · run.sh · dev.sh
+cli/ gloss.py     scripts/ gloss.mjs · setup/run/dev (.sh + .ps1)
 ```
 
-**Data** lives under `backend/data/`: a SQLite DB (papers / highlights / chats / messages / refs / cache)
-plus one folder per paper with its `original.pdf` and parsed `parsed.json`.
+**Data** lives in the platform data directory described above: a SQLite DB plus
+one folder per paper with its `original.pdf` and parsed `parsed.json`.
 
 ---
 
@@ -140,7 +218,7 @@ plus one folder per paper with its `original.pdf` and parsed `parsed.json`.
 - **Local `claude` / `codex` run standalone** — they sign in with your existing subscription (no API key),
   and each answer is scoped to the current paper only, never mixed with your personal Claude/Codex config.
 - **Your data stays local** — papers, highlights, notes, and chats are stored in a local SQLite database plus
-  per-paper files under `backend/data/`; nothing leaves your machine except the external lookups below.
+  per-paper files in the platform data directory; nothing leaves your machine except the external lookups below.
 - **External lookups degrade gracefully** — References / Scholar go through the machine's HTTP proxy; if a
   source is offline, Gloss falls back to local data instead of erroring the whole page.
 - **Generated results are cached** — summary / notes / mind map / translation / highlights are saved after the

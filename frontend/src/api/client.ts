@@ -1,5 +1,7 @@
 // Typed API client for the Gloss backend, including POST-based SSE streaming.
 
+import { fetchWithTimeout } from "./fetchWithTimeout.mjs";
+
 export interface Paper {
   id: string;
   title: string;
@@ -132,11 +134,11 @@ export const api = {
     return fetch("/api/papers/upload", { method: "POST", body: fd }).then((r) => j<Paper>(r));
   },
   importPaper: (query: string) =>
-    fetch("/api/papers/import", {
+    fetchWithTimeout("/api/papers/import", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ query }),
-    }).then((r) => j<Paper>(r)),
+    }, 300_000, (r) => j<Paper>(r)),
   pdfUrl: (id: string) => `/api/papers/${id}/pdf`,
   getPages: (id: string) => fetch(`/api/papers/${id}/pages`).then((r) => j<PagesResponse>(r)),
 
