@@ -5,6 +5,9 @@ Mounts all API routers and serves the built React frontend (SPA) from
 """
 from __future__ import annotations
 
+import asyncio
+import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -14,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import config
 from .library import store
+from .library.import_jobs import ImportJobManager
 from .providers import registry
 from .routers import (
     ai,
@@ -25,7 +29,29 @@ from .routers import (
     skills,
 )
 
-app = FastAPI(title="Gloss-Local", version="1.0.0")
+logger = logging.getLogger(__name__)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    store.init_db()
+    app.state.import_jobs = ImportJobManager(
+        download_timeout=papers.IMPORT_DOWNLOAD_TIMEOUT,
+        parse_timeout=papers.IMPORT_PARSE_TIMEOUT,
+        save_timeout=papers.IMPORT_SAVE_TIMEOUT,
+    )
+    try:
+        yield
+    finally:
+        try:
+            await asyncio.wait_for(app.state.import_jobs.shutdown(), timeout=20)
+        except TimeoutError:
+            # Download, parse and save workers already received their cancel
+            # signals. Do not let a pathological filesystem cleanup block the
+            # local server from restarting forever.
+            logger.error("Timed out while shutting down the paper import queue")
+
+
+app = FastAPI(title="Gloss-Local", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -33,11 +59,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.on_event("startup")
-async def _startup() -> None:
-    store.init_db()
 
 
 @app.get("/api/health")

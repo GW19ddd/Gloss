@@ -11,8 +11,13 @@ import signal
 import shutil
 import subprocess
 import sys
+import time
 from collections.abc import Callable, Mapping
 from pathlib import Path
+
+
+class ProcessCancelledError(RuntimeError):
+    """Raised when a caller requests cancellation of spawned blocking work."""
 
 
 def _process_entry(send_connection, target: Callable, args: tuple) -> None:
@@ -30,9 +35,12 @@ def _process_entry(send_connection, target: Callable, args: tuple) -> None:
 
 
 def run_in_process_with_timeout(
-    target: Callable, args: tuple, timeout: float
+    target: Callable,
+    args: tuple,
+    timeout: float,
+    cancel_event=None,
 ):
-    """Run blocking work in a spawn process that can be killed at a deadline."""
+    """Run blocking work in a spawn process that can be killed or cancelled."""
     context = multiprocessing.get_context("spawn")
     receive_connection, send_connection = context.Pipe(duplex=False)
     process = context.Process(
@@ -42,14 +50,27 @@ def run_in_process_with_timeout(
     )
     process.start()
     send_connection.close()
-    try:
-        if not receive_connection.poll(timeout):
+
+    def stop_worker() -> None:
+        if process.is_alive():
             process.terminate()
+        process.join(5)
+        if process.is_alive():
+            process.kill()
             process.join(5)
-            if process.is_alive():
-                process.kill()
-                process.join(5)
-            raise TimeoutError(f"worker timed out after {timeout:g}s")
+
+    try:
+        deadline = time.monotonic() + timeout
+        while True:
+            if cancel_event is not None and cancel_event.is_set():
+                stop_worker()
+                raise ProcessCancelledError("worker was cancelled")
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                stop_worker()
+                raise TimeoutError(f"worker timed out after {timeout:g}s")
+            if receive_connection.poll(min(0.1, remaining)):
+                break
         try:
             status, payload = receive_connection.recv()
         except EOFError as error:
@@ -64,9 +85,7 @@ def run_in_process_with_timeout(
         raise RuntimeError(str(payload))
     finally:
         receive_connection.close()
-        if process.is_alive():
-            process.terminate()
-            process.join(5)
+        stop_worker()
 
 
 def read_utf8_text(path: Path) -> str:

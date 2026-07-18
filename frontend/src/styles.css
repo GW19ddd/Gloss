@@ -183,6 +183,24 @@ a:hover { text-decoration: underline; }
 .import-input { width: 420px; max-width: 70vw; }
 .import-row button { background: var(--accent); color: var(--on-accent); border: none; font-weight: 600; }
 .import-row button:nth-child(3) { background: var(--bg3); color: var(--fg); }
+.import-queue { width: min(100%, 760px); margin: 9px auto 0; display: flex; flex-direction: column; gap: 5px; text-align: left; }
+.import-job { position: relative; min-height: 36px; display: flex; align-items: center; gap: 10px; padding: 5px 7px 7px 10px; overflow: hidden; border: 1px solid var(--border); border-radius: 7px; background: var(--bg2); }
+.import-job-info { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 10px; }
+.import-job-query { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; color: var(--fg); }
+.import-job-stage { flex: 0 1 250px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: right; font-size: 11px; color: var(--fg-dim); }
+.import-job-action { flex: 0 0 auto; padding: 3px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--fg-dim); font-size: 11px; }
+.import-job-action:hover { color: var(--danger); background: var(--bg3); }
+.import-job-action:disabled { cursor: default; opacity: 0.6; }
+.import-job-track { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--bg3); }
+.import-job-fill { height: 100%; min-width: 2px; background: var(--accent); transition: width 240ms ease; }
+.import-job.completed .import-job-fill { background: #34d399; }
+.import-job.failed { border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); }
+.import-job.failed .import-job-fill { background: var(--danger); }
+
+@media (max-width: 680px) {
+  .import-job-info { display: block; }
+  .import-job-query, .import-job-stage { display: block; text-align: left; }
+}
 
 .lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; max-width: 1200px; margin: 0 auto; }
 .empty { grid-column: 1/-1; text-align: center; padding: 40px; }

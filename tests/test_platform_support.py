@@ -7,6 +7,7 @@ import json
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -262,5 +263,29 @@ def test_blocking_work_can_be_hard_stopped_at_a_deadline(platform_support) -> No
 
     with pytest.raises(TimeoutError, match="timed out"):
         platform_support.run_in_process_with_timeout(time.sleep, (5,), 0.1)
+
+    assert time.monotonic() - started < 2
+
+
+def test_blocking_work_can_be_hard_stopped_on_request(platform_support) -> None:
+    cancel = threading.Event()
+
+    def request_cancel() -> None:
+        time.sleep(0.1)
+        cancel.set()
+
+    requester = threading.Thread(target=request_cancel)
+    requester.start()
+    started = time.monotonic()
+    try:
+        with pytest.raises(platform_support.ProcessCancelledError):
+            platform_support.run_in_process_with_timeout(
+                time.sleep,
+                (5,),
+                10,
+                cancel_event=cancel,
+            )
+    finally:
+        requester.join()
 
     assert time.monotonic() - started < 2

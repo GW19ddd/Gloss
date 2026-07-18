@@ -1,5 +1,11 @@
 import { create } from "zustand";
-import { api, Highlight, PagesResponse, Paper } from "./api/client";
+import { api, Highlight, ImportJob, PagesResponse, Paper } from "./api/client";
+import { mergeImportJobSnapshots } from "./importQueue.mjs";
+
+let importMutation = 0;
+let importRefreshInFlight: Promise<void> | null = null;
+let papersRequestSequence = 0;
+let papersAppliedSequence = 0;
 
 export interface Selection {
   text: string;
@@ -9,6 +15,7 @@ export interface Selection {
 
 interface State {
   papers: Paper[];
+  importJobs: ImportJob[];
   view: "library" | "reader";
   current: Paper | null;
   pages: PagesResponse | null;
@@ -27,6 +34,9 @@ interface State {
   selectionAction: { kind: string; selection: Selection; id: number } | null;
 
   loadPapers: () => Promise<void>;
+  loadImportJobs: () => Promise<void>;
+  enqueueImport: (query: string) => Promise<ImportJob>;
+  cancelImport: (id: string) => Promise<void>;
   openPaper: (id: string) => Promise<void>;
   closePaper: () => void;
   setTab: (t: string) => void;
@@ -46,6 +56,7 @@ interface State {
 
 export const useStore = create<State>((set, get) => ({
   papers: [],
+  importJobs: [],
   view: "library",
   current: null,
   pages: null,
@@ -64,8 +75,101 @@ export const useStore = create<State>((set, get) => ({
   scholarView: { key: null, query: "" },
 
   loadPapers: async () => {
+    const requestSequence = ++papersRequestSequence;
     const { papers } = await api.listPapers();
-    set({ papers });
+    // Apply the newest successful response. A slower, older request can no
+    // longer overwrite a library refresh triggered by a completed import.
+    if (requestSequence > papersAppliedSequence) {
+      papersAppliedSequence = requestSequence;
+      set({ papers });
+    }
+  },
+  loadImportJobs: () => {
+    if (importRefreshInFlight) return importRefreshInFlight;
+    const mutationAtStart = importMutation;
+    importRefreshInFlight = (async () => {
+      const { jobs } = await api.listImportJobs();
+      if (mutationAtStart !== importMutation) return;
+
+      const previous = get().importJobs;
+      const merged = mergeImportJobSnapshots(previous, jobs) as ImportJob[];
+      const previousById = new Map(previous.map((job) => [job.id, job]));
+      const newlyCompleted = merged.filter(
+        (job) => job.status === "completed" && previousById.get(job.id)?.status !== "completed",
+      );
+      const newlyFailed = merged.filter(
+        (job) => job.status === "failed" && previousById.get(job.id)?.status !== "failed",
+      );
+      const completedNeedingRefresh = merged.filter(
+        (job) =>
+          job.status === "completed" &&
+          job.paper_id &&
+          !get().papers.some((paper) => paper.id === job.paper_id),
+      );
+
+      if (newlyCompleted.length || completedNeedingRefresh.length) {
+        // Publish "completed" only after the library refresh succeeds. If the
+        // backend is briefly unavailable, the next poll retries this refresh.
+        await get().loadPapers();
+      }
+      set({ importJobs: merged });
+
+      if (newlyCompleted.length) {
+        const latest = newlyCompleted[newlyCompleted.length - 1];
+        get().notify(`Imported: ${(latest.title || latest.query).slice(0, 50)}`);
+      } else if (newlyFailed.length) {
+        const latest = newlyFailed[newlyFailed.length - 1];
+        get().notify(`Import failed: ${latest.error || latest.query}`);
+      }
+    })().finally(() => {
+      importRefreshInFlight = null;
+    });
+    return importRefreshInFlight;
+  },
+  enqueueImport: async (query) => {
+    const job = await api.enqueueImport(query);
+    importMutation += 1;
+    set((state) => ({
+      importJobs: [...state.importJobs.filter((item) => item.id !== job.id), job],
+    }));
+    return job;
+  },
+  cancelImport: async (id) => {
+    const previousJob = get().importJobs.find((job) => job.id === id);
+    importMutation += 1;
+    set((state) => ({
+      importJobs: state.importJobs.map((job) =>
+        job.id === id && !["completed", "failed", "cancelled"].includes(job.status)
+          ? {
+              ...job,
+              status: "cancelling",
+              stage_detail: "Cancelling import",
+              revision: job.revision + 1,
+            }
+          : job,
+      ),
+    }));
+    try {
+      await api.cancelImportJob(id);
+      importMutation += 1;
+      set((state) => ({ importJobs: state.importJobs.filter((job) => job.id !== id) }));
+      // If completion won the server-side race, DELETE clears only the job and
+      // keeps the finished paper. Refreshing is harmless for a true cancel.
+      await get().loadPapers();
+    } catch (error) {
+      importMutation += 1;
+      if (previousJob) {
+        set((state) => ({
+          importJobs: state.importJobs.map((job) => job.id === id ? previousJob : job),
+        }));
+      }
+      try {
+        await get().loadPapers();
+      } catch {
+        // The next successful queue poll retries completed-paper refreshes.
+      }
+      throw error;
+    }
   },
   openPaper: async (id) => {
     const [paper, pages] = await Promise.all([api.getPaper(id), api.getPages(id)]);

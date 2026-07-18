@@ -5,6 +5,7 @@ import { Outline } from "./components/Outline";
 import { SidePanel } from "./components/SidePanel";
 import { Logo } from "./components/Logo";
 import { PdfViewer } from "./pdf/PdfViewer";
+import { startImportJobPolling } from "./importQueue.mjs";
 
 export default function App() {
   const view = useStore((s) => s.view);
@@ -12,6 +13,7 @@ export default function App() {
   const closePaper = useStore((s) => s.closePaper);
   const loadPapers = useStore((s) => s.loadPapers);
   const loadSettings = useStore((s) => s.loadSettings);
+  const loadImportJobs = useStore((s) => s.loadImportJobs);
   const provider = useStore((s) => s.provider);
   const toast = useStore((s) => s.toast);
   const notify = useStore((s) => s.notify);
@@ -38,6 +40,8 @@ export default function App() {
     loadPapers();
     loadSettings();
   }, []);
+
+  useEffect(() => startImportJobPolling(loadImportJobs, 1000), [loadImportJobs]);
 
   useEffect(() => {
     localStorage.setItem("gloss.sideWidth", String(sideWidth));

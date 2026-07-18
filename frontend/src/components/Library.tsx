@@ -1,12 +1,14 @@
 import { useRef, useState } from "react";
 import { api } from "../api/client";
 import { useStore } from "../store";
+import { ImportQueue } from "./ImportQueue";
 import { Logo } from "./Logo";
 
 export function Library() {
   const papers = useStore((s) => s.papers);
   const openPaper = useStore((s) => s.openPaper);
   const loadPapers = useStore((s) => s.loadPapers);
+  const enqueueImport = useStore((s) => s.enqueueImport);
   const notify = useStore((s) => s.notify);
   const uiLang = useStore((s) => s.uiLang);
   const T = {
@@ -32,12 +34,13 @@ export function Library() {
     },
   }[uiLang];
   const [importQ, setImportQ] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const [creatingImport, setCreatingImport] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function onUpload(files: FileList | null) {
     if (!files || files.length === 0) return;
-    setBusy(true);
+    setUploadBusy(true);
     try {
       for (const f of Array.from(files)) {
         const p = await api.uploadPaper(f);
@@ -47,23 +50,20 @@ export function Library() {
     } catch (e: any) {
       notify("Upload failed: " + (e.message || e));
     } finally {
-      setBusy(false);
+      setUploadBusy(false);
     }
   }
 
   async function onImport() {
     if (!importQ.trim()) return;
-    setBusy(true);
+    setCreatingImport(true);
     try {
-      const p = await api.importPaper(importQ.trim());
+      await enqueueImport(importQ.trim());
       setImportQ("");
-      await loadPapers();
-      notify("Imported: " + (p.title || "").slice(0, 40));
-      openPaper(p.id);
     } catch (e: any) {
       notify("Import failed: " + (e.message || e));
     } finally {
-      setBusy(false);
+      setCreatingImport(false);
     }
   }
 
@@ -87,8 +87,8 @@ export function Library() {
             onChange={(e) => setImportQ(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && onImport()}
           />
-          <button onClick={onImport} disabled={busy}>{T.import}</button>
-          <button onClick={() => fileRef.current?.click()} disabled={busy}>{T.upload}</button>
+          <button onClick={onImport} disabled={creatingImport || !importQ.trim()}>{T.import}</button>
+          <button onClick={() => fileRef.current?.click()} disabled={uploadBusy}>{T.upload}</button>
           <input
             ref={fileRef}
             type="file"
@@ -98,7 +98,7 @@ export function Library() {
             onChange={(e) => onUpload(e.target.files)}
           />
         </div>
-        {busy && <div className="muted">{T.working}</div>}
+        <ImportQueue />
       </div>
 
       <div className="lib-grid">

@@ -16,6 +16,30 @@ export interface Paper {
   added_at: number;
 }
 
+export type ImportJobStatus =
+  | "queued"
+  | "downloading"
+  | "parsing"
+  | "saving"
+  | "cancelling"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export interface ImportJob {
+  id: string;
+  query: string;
+  status: ImportJobStatus;
+  progress: number;
+  stage_detail: string;
+  title: string;
+  paper_id: string | null;
+  error: string | null;
+  created_at: number;
+  updated_at: number;
+  revision: number;
+}
+
 export interface Block {
   id: number;
   bbox: [number, number, number, number];
@@ -139,6 +163,26 @@ export const api = {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ query }),
     }, 300_000, (r) => j<Paper>(r)),
+  enqueueImport: (query: string) =>
+    fetchWithTimeout(
+      "/api/papers/import-jobs",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query }),
+      },
+      15_000,
+      (r) => j<ImportJob>(r),
+    ),
+  listImportJobs: () =>
+    fetchWithTimeout(
+      "/api/papers/import-jobs",
+      {},
+      10_000,
+      (r) => j<{ jobs: ImportJob[] }>(r),
+    ),
+  cancelImportJob: (id: string) =>
+    fetch(`/api/papers/import-jobs/${id}`, { method: "DELETE" }).then((r) => j<{ ok: boolean }>(r)),
   pdfUrl: (id: string) => `/api/papers/${id}/pdf`,
   getPages: (id: string) => fetch(`/api/papers/${id}/pages`).then((r) => j<PagesResponse>(r)),
 

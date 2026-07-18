@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
+
+import pytest
 
 
 def test_pdf_parser_runs_in_a_killable_worker(pdf_bytes) -> None:
@@ -11,6 +14,34 @@ def test_pdf_parser_runs_in_a_killable_worker(pdf_bytes) -> None:
     assert parsed["n_pages"] == 2
     assert parsed["pages"]
     assert "sections" in parsed
+
+
+def test_cancelled_parser_removes_parent_owned_temporary_pdf(
+    monkeypatch, pdf_bytes
+) -> None:
+    from app import platform_support
+    from app.library import service
+
+    temporary_path: Path | None = None
+
+    def cancelled(_target, args, _timeout, cancel_event=None):
+        nonlocal temporary_path
+        assert cancel_event is not None
+        temporary_path = Path(args[0])
+        assert temporary_path.is_file()
+        raise platform_support.ProcessCancelledError("cancelled")
+
+    monkeypatch.setattr(service, "run_in_process_with_timeout", cancelled)
+
+    with pytest.raises(platform_support.ProcessCancelledError):
+        service.parse_pdf_bytes_with_timeout(
+            pdf_bytes,
+            10,
+            cancel_event=object(),
+        )
+
+    assert temporary_path is not None
+    assert not temporary_path.exists()
 
 
 def test_server_import_timeout_configuration_cannot_outlive_client(

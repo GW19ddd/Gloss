@@ -4,12 +4,17 @@ from __future__ import annotations
 import asyncio
 import os
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from ..library import importers, service, store
+from ..library.import_jobs import (
+    ImportCleanupError,
+    ImportJobManager,
+    ImportQueueFullError,
+)
 from ..pdf import ingest, structure
 
 router = APIRouter(prefix="/api/papers", tags=["papers"])
@@ -25,6 +30,7 @@ def _bounded_import_timeout(name: str) -> float:
 
 IMPORT_DOWNLOAD_TIMEOUT = _bounded_import_timeout("GLOSS_IMPORT_TIMEOUT")
 IMPORT_PARSE_TIMEOUT = _bounded_import_timeout("GLOSS_IMPORT_PARSE_TIMEOUT")
+IMPORT_SAVE_TIMEOUT = _bounded_import_timeout("GLOSS_IMPORT_SAVE_TIMEOUT")
 
 
 class ImportBody(BaseModel):
@@ -91,6 +97,50 @@ async def import_paper(body: ImportBody):
     except ValueError as e:
         raise HTTPException(400, str(e))
     return paper
+
+
+def _import_job_manager(request: Request) -> ImportJobManager:
+    manager = getattr(request.app.state, "import_jobs", None)
+    if manager is None:
+        raise HTTPException(503, "import queue is not ready")
+    return manager
+
+
+@router.post("/import-jobs", status_code=status.HTTP_202_ACCEPTED)
+async def enqueue_import(body: ImportBody, request: Request):
+    manager = _import_job_manager(request)
+    try:
+        return await manager.submit(body.model_dump(exclude_none=True))
+    except ImportQueueFullError as error:
+        raise HTTPException(429, str(error)) from error
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
+    except RuntimeError as error:
+        raise HTTPException(503, str(error)) from error
+
+
+@router.get("/import-jobs")
+async def list_import_jobs(request: Request):
+    return {"jobs": await _import_job_manager(request).list()}
+
+
+@router.get("/import-jobs/{job_id}")
+async def get_import_job(job_id: str, request: Request):
+    job = await _import_job_manager(request).get(job_id)
+    if job is None:
+        raise HTTPException(404, "import job not found")
+    return job
+
+
+@router.delete("/import-jobs/{job_id}")
+async def cancel_or_clear_import_job(job_id: str, request: Request):
+    try:
+        removed = await _import_job_manager(request).cancel_or_clear(job_id)
+    except ImportCleanupError as error:
+        raise HTTPException(500, str(error)) from error
+    if not removed:
+        raise HTTPException(404, "import job not found")
+    return {"ok": True}
 
 
 @router.get("/{paper_id}")
