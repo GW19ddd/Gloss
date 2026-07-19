@@ -2,9 +2,20 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  visibleImportJobs,
   mergeImportJobSnapshots,
   startImportJobPolling,
 } from "../src/importQueue.mjs";
+
+test("completed imports disappear from the progress queue", () => {
+  const jobs = [
+    { id: "done", status: "completed", progress: 100 },
+    { id: "download", status: "downloading", progress: 10 },
+    { id: "failed", status: "failed", progress: 10 },
+  ];
+
+  assert.deepEqual(visibleImportJobs(jobs), [jobs[1], jobs[2]]);
+});
 
 test("newer import job revisions are never overwritten by stale polling responses", () => {
   const current = [

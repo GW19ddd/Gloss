@@ -6,6 +6,10 @@ export function mergeImportJobSnapshots(current, incoming) {
   });
 }
 
+export function visibleImportJobs(jobs) {
+  return jobs.filter((job) => job.status !== "completed");
+}
+
 export function startImportJobPolling(
   refresh,
   delay = 1000,

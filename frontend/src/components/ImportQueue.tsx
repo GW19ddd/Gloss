@@ -1,10 +1,11 @@
 import { ImportJob } from "../api/client";
+import { visibleImportJobs } from "../importQueue.mjs";
 import { useStore } from "../store";
 
 const activeStatuses = new Set(["queued", "downloading", "parsing", "saving", "cancelling"]);
 
 export function ImportQueue() {
-  const jobs = useStore((state) => state.importJobs);
+  const jobs = visibleImportJobs(useStore((state) => state.importJobs));
   const cancelImport = useStore((state) => state.cancelImport);
   const notify = useStore((state) => state.notify);
   const uiLang = useStore((state) => state.uiLang);
