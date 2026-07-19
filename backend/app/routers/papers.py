@@ -20,15 +20,15 @@ from ..pdf import ingest, structure
 router = APIRouter(prefix="/api/papers", tags=["papers"])
 
 
-def _bounded_import_timeout(name: str) -> float:
+def _bounded_import_timeout(name: str, *, default: float = 120) -> float:
     try:
-        configured = float(os.environ.get(name, "120"))
+        configured = float(os.environ.get(name, str(default)))
     except ValueError:
         configured = 120
-    return max(1, min(configured, 120))
+    return max(1, min(configured, 300))
 
 
-IMPORT_DOWNLOAD_TIMEOUT = _bounded_import_timeout("GLOSS_IMPORT_TIMEOUT")
+IMPORT_DOWNLOAD_TIMEOUT = _bounded_import_timeout("GLOSS_IMPORT_TIMEOUT", default=300)
 IMPORT_PARSE_TIMEOUT = _bounded_import_timeout("GLOSS_IMPORT_PARSE_TIMEOUT")
 IMPORT_SAVE_TIMEOUT = _bounded_import_timeout("GLOSS_IMPORT_SAVE_TIMEOUT")
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 from pathlib import Path
 
 import pytest
@@ -44,14 +45,57 @@ def test_cancelled_parser_removes_parent_owned_temporary_pdf(
     assert not temporary_path.exists()
 
 
-def test_server_import_timeout_configuration_cannot_outlive_client(
+def test_server_import_timeout_configuration_is_capped_at_300_seconds(
     monkeypatch,
 ) -> None:
     from app.routers import papers
 
     monkeypatch.setenv("GLOSS_TEST_IMPORT_BUDGET", "999")
 
-    assert papers._bounded_import_timeout("GLOSS_TEST_IMPORT_BUDGET") == 120
+    assert papers._bounded_import_timeout("GLOSS_TEST_IMPORT_BUDGET") == 300
+
+
+def test_download_timeout_defaults_to_300_seconds(monkeypatch) -> None:
+    monkeypatch.delenv("GLOSS_IMPORT_TIMEOUT", raising=False)
+    import app.routers.papers as papers
+
+    reloaded = importlib.reload(papers)
+
+    assert reloaded.IMPORT_DOWNLOAD_TIMEOUT == 300
+
+
+def test_arxiv_pdf_download_does_not_wait_for_optional_metadata(monkeypatch) -> None:
+    """A slow Atom endpoint must not consume the PDF's download budget."""
+    from app.library import importers
+
+    class FakeResponse:
+        content = b"%PDF-fast"
+
+        def raise_for_status(self) -> None:
+            return None
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args) -> None:
+            return None
+
+        async def get(self, url, **_kwargs):
+            if "export.arxiv.org" in url:
+                await asyncio.Event().wait()
+            assert "/pdf/2504.12369.pdf" in url
+            return FakeResponse()
+
+    monkeypatch.setattr(importers, "external_client", lambda **_kwargs: FakeClient())
+
+    async def fetch():
+        return await asyncio.wait_for(importers.fetch_arxiv("2504.12369"), timeout=0.2)
+
+    meta, pdf = asyncio.run(fetch())
+
+    assert meta["arxiv_id"] == "2504.12369"
+    assert pdf == b"%PDF-fast"
 
 
 def test_url_import_has_an_end_to_end_download_deadline(

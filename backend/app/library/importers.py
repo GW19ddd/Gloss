@@ -5,6 +5,8 @@ clear error and can fall back to uploading a PDF.
 """
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import re
 
 from ..net import UA, external_client  # noqa: F401  (UA re-exported for callers)
@@ -19,33 +21,49 @@ def normalize_arxiv_id(s: str) -> str | None:
     return m.group(0) if m else None
 
 
-async def fetch_arxiv(arxiv_id: str) -> tuple[dict, bytes]:
-    """Return (metadata, pdf_bytes) for an arXiv id."""
+async def _fetch_arxiv_metadata(client, arxiv_id: str) -> dict:
+    """Best-effort Atom metadata. Cancellation must propagate to the caller."""
     import feedparser
 
+    try:
+        r = await client.get(
+            "http://export.arxiv.org/api/query",
+            params={"id_list": arxiv_id, "max_results": 1},
+        )
+        feed = feedparser.parse(r.text)
+        if not feed.entries:
+            return {}
+        e = feed.entries[0]
+        return {
+            "title": re.sub(r"\s+", " ", e.get("title", "")).strip(),
+            "authors": [a.get("name", "") for a in e.get("authors", [])],
+            "abstract": re.sub(r"\s+", " ", e.get("summary", "")).strip(),
+            "year": e.get("published", "")[:4],
+            "doi": e.get("arxiv_doi", "") or "",
+        }
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        return {}
+
+
+async def fetch_arxiv(arxiv_id: str) -> tuple[dict, bytes]:
+    """Return (metadata, pdf_bytes) without making metadata a PDF dependency."""
     meta: dict = {"source": "arxiv", "arxiv_id": arxiv_id}
     async with external_client(timeout=60) as client:
-        # metadata via the arXiv Atom API
+        metadata_task = asyncio.create_task(_fetch_arxiv_metadata(client, arxiv_id))
         try:
-            r = await client.get(
-                "http://export.arxiv.org/api/query",
-                params={"id_list": arxiv_id, "max_results": 1},
-            )
-            feed = feedparser.parse(r.text)
-            if feed.entries:
-                e = feed.entries[0]
-                meta["title"] = re.sub(r"\s+", " ", e.get("title", "")).strip()
-                meta["authors"] = [a.get("name", "") for a in e.get("authors", [])]
-                meta["abstract"] = re.sub(r"\s+", " ", e.get("summary", "")).strip()
-                meta["year"] = (e.get("published", "")[:4])
-                meta["doi"] = e.get("arxiv_doi", "") or ""
-        except Exception:
-            pass
-        # pdf
-        pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
-        resp = await client.get(pdf_url)
-        resp.raise_for_status()
-        return meta, resp.content
+            pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
+            resp = await client.get(pdf_url)
+            resp.raise_for_status()
+            if metadata_task.done() and not metadata_task.cancelled():
+                meta.update(metadata_task.result())
+            return meta, resp.content
+        finally:
+            if not metadata_task.done():
+                metadata_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await metadata_task
 
 
 async def fetch_arxiv_tex(arxiv_id: str) -> dict:
