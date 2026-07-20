@@ -27,6 +27,14 @@ React / PDF.js 的阅读器界面，并驱动一个大模型帮你速览、研�
 
 ---
 
+## 阅读器预览
+
+<p align="center">
+  <img src="./docs/reader-summary.png" alt="Gloss 论文阅读器：左侧 PDF，右侧 AI 结构化摘要" />
+</p>
+
+---
+
 ## ✨ 功能一览
 
 | 功能 | 说明 |

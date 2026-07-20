@@ -28,6 +28,14 @@ Everything runs on your own machine: one process, one port, open a browser and r
 
 ---
 
+## Reader preview
+
+<p align="center">
+  <img src="./docs/reader-summary.png" alt="Gloss paper reader showing a PDF alongside an AI-generated structured summary" />
+</p>
+
+---
+
 ## ✨ Features
 
 | Feature | What it does |
