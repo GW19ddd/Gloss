@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn, spawnSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
@@ -12,12 +13,22 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const BACKEND = path.join(ROOT, "backend");
 const FRONTEND = path.join(ROOT, "frontend");
 const IS_WINDOWS = process.platform === "win32";
+const IS_SOURCE_CHECKOUT = fs.existsSync(path.join(ROOT, ".git"));
+const PACKAGE = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
+
+function runtimeDir() {
+  if (process.env.GLOSS_RUNTIME_DIR) return path.resolve(process.env.GLOSS_RUNTIME_DIR);
+  if (IS_SOURCE_CHECKOUT) return path.join(BACKEND, ".venv");
+  return path.join(cacheDir(), "runtime", `v${PACKAGE.version}`);
+}
+
+const VENV_DIR = runtimeDir();
 const VENV_PYTHON = path.join(
-  BACKEND,
-  ".venv",
+  VENV_DIR,
   IS_WINDOWS ? "Scripts" : "bin",
   IS_WINDOWS ? "python.exe" : "python",
 );
+const SETUP_MARKER = path.join(VENV_DIR, ".gloss-ready");
 
 function fail(message) {
   console.error(`Gloss: ${message}`);
@@ -68,6 +79,26 @@ function setupEnv() {
 function parseOption(name) {
   const index = process.argv.indexOf(name);
   return index >= 0 ? process.argv[index + 1] : undefined;
+}
+
+function hasOption(name) {
+  return process.argv.includes(name);
+}
+
+function requirementsFingerprint() {
+  const contents = fs.readFileSync(path.join(BACKEND, "requirements.txt"));
+  return crypto.createHash("sha256").update(contents).digest("hex");
+}
+
+function environmentPrepared() {
+  if (!fs.existsSync(VENV_PYTHON)) return false;
+  if (!fs.existsSync(SETUP_MARKER)) return IS_SOURCE_CHECKOUT;
+  try {
+    const marker = JSON.parse(fs.readFileSync(SETUP_MARKER, "utf8"));
+    return marker.requirements === requirementsFingerprint();
+  } catch {
+    return false;
+  }
 }
 
 function pythonCandidates() {
@@ -124,29 +155,44 @@ function runPackage(manager, args, options = {}) {
 }
 
 function setup() {
-  const nodeMajor = Number(process.versions.node.split(".")[0]);
+  const [nodeMajor, nodeMinor] = process.versions.node.split(".").map(Number);
   if (nodeMajor < 18) fail(`Node.js 18 or newer is required (found ${process.versions.node}).`);
+  if (IS_SOURCE_CHECKOUT && (nodeMajor < 20 || (nodeMajor === 20 && nodeMinor < 19))) {
+    fail(`building from source requires Node.js 20.19 or newer (found ${process.versions.node}).`);
+  }
   const env = setupEnv();
   if (!fs.existsSync(VENV_PYTHON)) {
     const python = selectPython();
     console.log("==> creating backend virtual environment");
-    run(python.command, [...python.prefix, "-m", "venv", path.join(BACKEND, ".venv")], { env });
+    run(python.command, [...python.prefix, "-m", "venv", VENV_DIR], { env });
   }
   console.log("==> installing backend dependencies");
   run(VENV_PYTHON, ["-m", "pip", "install", "--upgrade", "pip"], { env });
   run(VENV_PYTHON, ["-m", "pip", "install", "-r", path.join(BACKEND, "requirements.txt")], { env });
 
-  const manager = packageManager();
-  console.log(`==> installing and building frontend with ${manager}`);
-  if (manager === "bun") {
-    runPackage(manager, ["install", "--frozen-lockfile"], { cwd: FRONTEND, env });
-    runPackage(manager, ["run", "build"], { cwd: FRONTEND, env });
-  } else {
-    runPackage(manager, ["ci", "--no-fund", "--no-audit"], { cwd: FRONTEND, env });
-    runPackage(manager, ["run", "build"], { cwd: FRONTEND, env });
+  if (IS_SOURCE_CHECKOUT || !fs.existsSync(path.join(FRONTEND, "dist", "index.html"))) {
+    if (!fs.existsSync(path.join(FRONTEND, "package.json"))) {
+      fail("this package is missing its prebuilt frontend; reinstall Gloss or report a broken release.");
+    }
+    const manager = packageManager();
+    console.log(`==> installing and building frontend with ${manager}`);
+    if (manager === "bun") {
+      runPackage(manager, ["install", "--frozen-lockfile"], { cwd: FRONTEND, env });
+      runPackage(manager, ["run", "build"], { cwd: FRONTEND, env });
+    } else {
+      runPackage(manager, ["ci", "--no-fund", "--no-audit"], { cwd: FRONTEND, env });
+      runPackage(manager, ["run", "build"], { cwd: FRONTEND, env });
+    }
   }
+  fs.writeFileSync(
+    SETUP_MARKER,
+    `${JSON.stringify({ version: PACKAGE.version, requirements: requirementsFingerprint() })}\n`,
+    "utf8",
+  );
   console.log(`==> ready. Cache: ${cacheDir()}`);
-  console.log("    Start with: npm start  (or bun run start)");
+  console.log(IS_SOURCE_CHECKOUT
+    ? "    Start with: npm start  (or bun run start)"
+    : "    Starting Gloss now...");
 }
 
 function selectedPort() {
@@ -158,9 +204,16 @@ function selectedHost() {
 }
 
 function assertPrepared(requireFrontend = true) {
-  if (!fs.existsSync(VENV_PYTHON)) fail("backend virtual environment is missing; run npm run setup first.");
+  if (!environmentPrepared()) fail("backend environment is missing or outdated; run npm run setup first.");
   if (requireFrontend && !fs.existsSync(path.join(FRONTEND, "dist", "index.html"))) {
     fail("frontend build is missing; run npm run setup first.");
+  }
+}
+
+function ensurePrepared() {
+  if (!environmentPrepared() || !fs.existsSync(path.join(FRONTEND, "dist", "index.html"))) {
+    console.log("Gloss: first run setup (this only happens once per version)");
+    setup();
   }
 }
 
@@ -174,7 +227,7 @@ function portIsFree(host, port) {
 }
 
 async function start() {
-  assertPrepared();
+  ensurePrepared();
   const host = selectedHost();
   const port = selectedPort();
   if (!(await portIsFree(host, port))) {
@@ -187,6 +240,64 @@ async function start() {
     { cwd: BACKEND, env: process.env, stdio: "inherit", shell: false, detached: !IS_WINDOWS },
   );
   supervise([{ child, name: "backend" }]);
+}
+
+function doctor() {
+  const python = selectPythonOrNull();
+  const report = {
+    ok: Boolean(python) && fs.existsSync(path.join(FRONTEND, "dist", "index.html")),
+    version: PACKAGE.version,
+    source_checkout: IS_SOURCE_CHECKOUT,
+    node: process.versions.node,
+    python: python?.version ?? null,
+    prepared: environmentPrepared(),
+    frontend_built: fs.existsSync(path.join(FRONTEND, "dist", "index.html")),
+    runtime_dir: VENV_DIR,
+    cache_dir: cacheDir(),
+  };
+  if (hasOption("--json")) console.log(JSON.stringify(report, null, 2));
+  else {
+    console.log(`Gloss ${report.version}`);
+    console.log(`Node: ${report.node}`);
+    console.log(`Python: ${report.python ?? "missing (3.11+ required for npm installs)"}`);
+    console.log(`Ready: ${report.prepared && report.frontend_built ? "yes" : "no"}`);
+    console.log(`Runtime: ${report.runtime_dir}`);
+  }
+  if (!report.ok) process.exitCode = 1;
+}
+
+function selectPythonOrNull() {
+  for (const candidate of pythonCandidates()) {
+    const probe = spawnSync(
+      candidate.command,
+      [...candidate.prefix, "-c", "import sys; print('.'.join(map(str, sys.version_info[:3])))"],
+      { encoding: "utf8", shell: false },
+    );
+    if (probe.status !== 0) continue;
+    const version = probe.stdout.trim();
+    const [major, minor] = version.split(".").map(Number);
+    if (major === 3 && minor >= 11) return { ...candidate, version };
+  }
+  return null;
+}
+
+function printHelp() {
+  console.log(`Gloss ${PACKAGE.version} - local AI paper reader
+
+Usage:
+  gloss-local              install on first run, then start Gloss
+  gloss-local start        start the local web app
+  gloss-local setup        install or refresh local dependencies
+  gloss-local doctor       inspect this installation
+  gloss-local dev          run backend and frontend development servers
+  gloss-local test         run the project test suite
+
+Options:
+  --host <address>          bind address (default: 0.0.0.0)
+  --port <number>           service port (default: 8010)
+  --python <path>           Python 3.11+ interpreter for first-run setup
+  --json                    machine-readable doctor output
+  --help                    show this help`);
 }
 
 function terminate(child) {
@@ -258,8 +369,11 @@ function test() {
 }
 
 const command = process.argv[2];
-if (command === "setup") setup();
+if (command === "--help" || command === "-h" || command === "help") printHelp();
+else if (!command || command === "--host" || command === "--port") await start();
+else if (command === "setup") setup();
 else if (command === "start") await start();
 else if (command === "dev") dev();
+else if (command === "doctor") doctor();
 else if (command === "test") test();
-else fail("usage: node scripts/gloss.mjs <setup|start|dev|test>");
+else fail("unknown command. Run gloss-local --help for usage.");

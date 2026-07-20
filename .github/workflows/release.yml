@@ -1,0 +1,95 @@
+name: Release packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_npm:
+        description: Publish gloss-local to npm (requires NPM_TOKEN)
+        required: false
+        default: false
+        type: boolean
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  npm-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build npm tarball
+        run: npm pack
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-package
+          path: gloss-local-*.tgz
+
+  windows-exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            packaging/requirements-build.txt
+      - name: Build portable executable
+        shell: pwsh
+        run: ./scripts/build-windows.ps1
+      - name: Smoke test executable
+        shell: pwsh
+        run: ./dist/Gloss.exe --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Gloss-windows-x64
+          path: dist/Gloss.exe
+
+  github-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [npm-package, windows-exe]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "*"
+          merge-multiple: true
+          path: release-assets
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true
+
+  publish-npm:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_npm
+    needs: npm-package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-package
+      - uses: actions/setup-node@v4
+        with:
+          # npm trusted publishing requires Node 22.14+ and npm 11.5.1+.
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+      - name: Publish npm package
+        run: npm publish gloss-local-*.tgz --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

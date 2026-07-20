@@ -63,7 +63,33 @@ Everything runs on your own machine: one process, one port, open a browser and r
 
 ## 🚀 Install & run (Windows / Linux)
 
-### Easiest: hand it to Claude Code or Codex
+### Windows: download and run
+
+Download **`Gloss.exe`** from the [latest release](https://github.com/computersniper/gloss/releases/latest),
+then double-click it. The portable app includes Gloss's frontend, Python runtime, and backend dependencies;
+Git, Node.js, Python, and a source checkout are not required.
+
+Gloss can use an existing, signed-in Claude Code or Codex CLI subscription. Choose **Local Claude**
+or **Local Codex** in Settings—no API key or separate API billing is required. The corresponding CLI
+must already be installed and signed in on this computer.
+
+### Windows / Linux: one command with npm
+
+If Node.js 18+ and Python 3.11+ are already installed, run:
+
+```bash
+npx gloss-local@latest
+```
+
+On Debian / Ubuntu, install the standard venv component once if it is not already present:
+`sudo apt install python3-venv` (or the versioned package such as `python3.12-venv`).
+
+No clone is needed. On its first run, the package creates an isolated Python environment in the
+standard Gloss cache directory, installs the backend dependencies, and starts the app. Later runs
+reuse that environment. You can also install the command permanently with
+`npm install --global gloss-local`, then run `gloss` anywhere.
+
+### Let Claude Code or Codex install the source version
 
 Open Claude Code or Codex in a terminal and paste this prompt:
 
@@ -71,20 +97,20 @@ Open Claude Code or Codex in a terminal and paste this prompt:
 Install and run https://github.com/computersniper/gloss on this computer.
 Detect whether the system is Windows or Linux and adapt every command accordingly.
 If the repository is not present, clone it; otherwise use the current checkout without
-overwriting local changes. Check for Node.js 18+ and Python 3.11+, and ask before
+overwriting local changes. Check for Node.js 20.19+ and Python 3.11+, and ask before
 installing missing system-level prerequisites. Use npm by default (Bun is also supported),
 run the project's setup command, start Gloss, verify GET /api/health returns HTTP 200,
 and tell me the local URL. Preserve any existing Gloss data and configuration.
 ```
 
-The agent can handle the commands; the complete manual steps are below for transparency
+The agent can handle the commands; the complete source steps are below for transparency
 and troubleshooting.
 
-### Manual installation
+### Development installation from source
 
 #### 1. Prerequisites and source
 
-Install Git, Node.js 18+, and Python 3.11+, then clone the repository:
+Install Git, Node.js 20.19+, and Python 3.11+, then clone the repository:
 
 ```bash
 git clone https://github.com/computersniper/gloss.git
@@ -95,6 +121,7 @@ python --version
 
 On Windows, `py --version` also works. If Python is installed in a custom location,
 set `GLOSS_PYTHON` or pass `--python <path>` to the setup command.
+On Debian / Ubuntu, also install `python3-venv` if `python -m venv` is unavailable.
 
 #### 2. Install dependencies and start
 
@@ -143,7 +170,7 @@ GLOSS_PORT=6006 GLOSS_HOST=0.0.0.0 scripts/run.sh
 - `GLOSS_HOST` — bind address (default `0.0.0.0`)
 - `GLOSS_DATA_DIR` — override the data directory
 - `GLOSS_CACHE_DIR` — override dependency/download caches
-- `GLOSS_IMPORT_TIMEOUT` — paper-download deadline in seconds (default/max `120`)
+- `GLOSS_IMPORT_TIMEOUT` — paper-download deadline in seconds (default/max `300`)
 - `GLOSS_IMPORT_PARSE_TIMEOUT` — PDF-parsing deadline in seconds (default/max `120`)
 - `GLOSS_LEGACY_ENCODING` — decode pre-UTF-8 config/paper metadata after moving
   data between Windows locales (for example, `cp936` or `cp1252`)

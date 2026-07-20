@@ -1,11 +1,39 @@
 {
   "name": "gloss-local",
-  "private": true,
   "version": "1.0.0",
+  "description": "A local, self-hosted AI companion for reading and annotating research papers.",
+  "type": "module",
+  "bin": {
+    "gloss": "scripts/gloss.mjs",
+    "gloss-local": "scripts/gloss.mjs"
+  },
+  "files": [
+    "backend/app/**/*.py",
+    "backend/requirements.txt",
+    "frontend/dist/**",
+    "scripts/gloss.mjs",
+    "README.md",
+    "README.zh.md",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/computersniper/gloss.git"
+  },
+  "bugs": {
+    "url": "https://github.com/computersniper/gloss/issues"
+  },
+  "homepage": "https://github.com/computersniper/gloss#readme",
   "scripts": {
     "setup": "node scripts/gloss.mjs setup",
     "start": "node scripts/gloss.mjs start",
     "dev": "node scripts/gloss.mjs dev",
-    "test": "node scripts/gloss.mjs test"
+    "doctor": "node scripts/gloss.mjs doctor --json",
+    "test": "node scripts/gloss.mjs test",
+    "build:frontend": "npm --prefix frontend ci --no-fund --no-audit && npm --prefix frontend run build",
+    "prepack": "npm run build:frontend"
   }
 }

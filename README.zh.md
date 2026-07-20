@@ -62,7 +62,32 @@ React / PDF.js 的阅读器界面，并驱动一个大模型帮你速览、研�
 
 ## 🚀 安装与运行（Windows / Linux）
 
-### 最省事：交给 Claude Code 或 Codex 😄
+### Windows：下载即用
+
+从 [GitHub 最新版本](https://github.com/computersniper/gloss/releases/latest) 下载
+**`Gloss.exe`**，双击即可运行。这个便携版已经包含 Gloss 前端、Python 运行时和后端依赖，
+不要求安装 Git、Node.js、Python，也不需要 clone 源码。
+
+Gloss 可以直接使用这台电脑上已登录的 Claude Code 或 Codex CLI 订阅。在设置里选择
+**Local Claude** 或 **Local Codex** 即可，不需要填写 API Key，也不会产生额外的 API 账单；
+对应的 CLI 仍需事先安装并在本机完成登录。
+
+### Windows / Linux：npm 一条命令
+
+如果电脑上已经有 Node.js 18+ 和 Python 3.11+，直接运行：
+
+```bash
+npx gloss-local@latest
+```
+
+Debian / Ubuntu 如果尚未提供 venv，需要先安装一次系统组件：
+`sudo apt install python3-venv`（也可能是 `python3.12-venv` 这样的版本包）。
+
+无需 clone。首次运行会在系统规范的 Gloss 缓存目录中创建隔离的 Python 环境、安装后端依赖，
+随后自动启动；以后会复用这个环境。也可以运行 `npm install --global gloss-local` 永久安装，
+之后在任意目录执行 `gloss`。
+
+### 交给 Claude Code 或 Codex 安装源码版 😄
 
 在终端中打开 Claude Code 或 Codex，把下面这段提示词直接交给它：
 
@@ -70,18 +95,18 @@ React / PDF.js 的阅读器界面，并驱动一个大模型帮你速览、研�
 请在这台电脑上安装并运行 https://github.com/computersniper/gloss。
 先识别系统是 Windows 还是 Linux，并使用适合当前系统的命令。如果仓库尚未存在，
 请先 clone；如果当前已经在仓库中，请直接使用当前工作区，不要覆盖本地修改。
-检查 Node.js 18+ 和 Python 3.11+；如缺少系统级依赖，先询问我再安装。
+检查 Node.js 20.19+ 和 Python 3.11+；如缺少系统级依赖，先询问我再安装。
 默认使用 npm（也支持 Bun），执行项目的 setup 命令并启动 Gloss，确认
 GET /api/health 返回 HTTP 200，最后告诉我本地访问地址。保留已有的 Gloss 数据和配置。
 ```
 
-安装和启动命令可以都交给它执行；为了方便检查和排错，下面仍给出完整的手动步骤。
+源码安装和启动命令可以都交给它执行；为了方便检查和排错，下面仍给出完整步骤。
 
-### 手动安装
+### 从源码安装（开发者）
 
 #### 1. 准备环境并获取源码
 
-先安装 Git、Node.js 18+ 和 Python 3.11+，然后克隆仓库：
+先安装 Git、Node.js 20.19+ 和 Python 3.11+，然后克隆仓库：
 
 ```bash
 git clone https://github.com/computersniper/gloss.git
@@ -92,6 +117,7 @@ python --version
 
 Windows 也可以用 `py --version`。如果 Python 位于自定义路径，可设置
 `GLOSS_PYTHON`，或给 setup 命令传入 `--python <路径>`。
+Debian / Ubuntu 若无法运行 `python -m venv`，还需要安装 `python3-venv`。
 
 #### 2. 安装依赖并启动
 
@@ -141,7 +167,7 @@ GLOSS_PORT=6006 GLOSS_HOST=0.0.0.0 scripts/run.sh
 - `GLOSS_HOST` —— 监听地址（默认 `0.0.0.0`）
 - `GLOSS_DATA_DIR` —— 覆盖数据目录
 - `GLOSS_CACHE_DIR` —— 覆盖依赖和下载缓存目录
-- `GLOSS_IMPORT_TIMEOUT` —— 下载论文的等待秒数（默认/上限 `120`）
+- `GLOSS_IMPORT_TIMEOUT` —— 下载论文的等待秒数（默认/上限 `300`）
 - `GLOSS_IMPORT_PARSE_TIMEOUT` —— 解析 PDF 的等待秒数（默认/上限 `120`）
 - `GLOSS_LEGACY_ENCODING` —— 数据跨 Windows 区域设置迁移后，用指定编码读取
   旧版非 UTF-8 配置和论文元数据（例如 `cp936` 或 `cp1252`）

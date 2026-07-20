@@ -5,6 +5,11 @@ __pycache__/
 # Node
 node_modules/
 frontend/dist/
+# Packaging output
+build/
+dist/
+*.spec.bak
+gloss-local-*.tgz
 # App data (papers, uploads, db, config with keys)
 backend/data/
 # Isolated HOME/cwd for the claude & codex CLI subprocesses

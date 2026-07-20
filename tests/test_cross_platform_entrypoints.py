@@ -17,6 +17,47 @@ def test_top_level_package_exposes_setup_start_and_dev() -> None:
     assert scripts["dev"] == "node scripts/gloss.mjs dev"
 
 
+def test_top_level_package_is_publishable_and_exposes_cli_bins() -> None:
+    package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
+
+    assert package["name"] == "gloss-local"
+    assert "private" not in package
+    assert package["bin"] == {
+        "gloss": "scripts/gloss.mjs",
+        "gloss-local": "scripts/gloss.mjs",
+    }
+    assert "frontend/dist/**" in package["files"]
+    assert "backend/app/**/*.py" in package["files"]
+    assert package["engines"]["node"] == ">=18"
+
+
+def test_npm_cli_supports_first_run_and_doctor() -> None:
+    launcher = (ROOT / "scripts" / "gloss.mjs").read_text(encoding="utf-8")
+
+    assert 'else if (!command || command === "--host" || command === "--port") await start();' in launcher
+    assert 'command === "doctor"' in launcher
+    assert '".gloss-ready"' in launcher
+    assert '"runtime", `v${PACKAGE.version}`' in launcher
+    assert "building from source requires Node.js 20.19 or newer" in launcher
+
+
+def test_windows_executable_packaging_is_wired_into_releases() -> None:
+    launcher = ROOT / "packaging" / "windows_launcher.py"
+    spec = ROOT / "packaging" / "Gloss.spec"
+    build_script = ROOT / "scripts" / "build-windows.ps1"
+    workflow = ROOT / ".github" / "workflows" / "release.yml"
+
+    for expected in (launcher, spec, build_script, workflow):
+        assert expected.is_file(), f"missing packaging file: {expected.relative_to(ROOT)}"
+
+    config = (ROOT / "backend" / "app" / "config.py").read_text(encoding="utf-8")
+    release = workflow.read_text(encoding="utf-8")
+    assert "GLOSS_FRONTEND_DIST" in config
+    assert "./dist/Gloss.exe --version" in release
+    assert "npm pack" in release
+    assert "npm publish gloss-local-*.tgz" in release
+
+
 def test_native_linux_and_windows_wrappers_exist() -> None:
     expected = [
         "scripts/setup.sh",

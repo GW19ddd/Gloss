@@ -33,8 +33,14 @@ CONFIG_PATH = DATA_DIR / "config.json"
 for _d in (DATA_DIR, CACHE_DIR, PAPERS_DIR, UPLOADS_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
-# Directory served as the built frontend (populated by `vite build`).
-FRONTEND_DIST = (_BACKEND_DIR.parent / "frontend" / "dist").resolve()
+# Directory served as the built frontend (populated by `vite build`). Frozen
+# desktop builds point this at the copy embedded by PyInstaller.
+FRONTEND_DIST = Path(
+    os.environ.get(
+        "GLOSS_FRONTEND_DIST",
+        str(_BACKEND_DIR.parent / "frontend" / "dist"),
+    )
+).expanduser().resolve()
 
 # ---------------------------------------------------------------------------
 # Isolated HOME for the `claude` CLI subprocess.
