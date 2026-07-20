@@ -9,7 +9,7 @@ import subprocess
 import sys
 import threading
 import time
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 import pytest
 
@@ -47,18 +47,20 @@ def test_linux_falls_back_to_home_directories(platform_support) -> None:
 def test_windows_uses_local_app_data(platform_support) -> None:
     env = {"LOCALAPPDATA": r"C:\Users\Alice\AppData\Local"}
 
-    assert platform_support.default_data_dir("win32", env, Path(r"C:\Users\Alice")) == Path(
-        r"C:\Users\Alice\AppData\Local\Gloss\data"
-    )
-    assert platform_support.default_cache_dir("win32", env, Path(r"C:\Users\Alice")) == Path(
-        r"C:\Users\Alice\AppData\Local\Gloss\cache"
-    )
+    assert PureWindowsPath(
+        platform_support.default_data_dir("win32", env, Path(r"C:\Users\Alice"))
+    ) == PureWindowsPath(r"C:\Users\Alice\AppData\Local\Gloss\data")
+    assert PureWindowsPath(
+        platform_support.default_cache_dir("win32", env, Path(r"C:\Users\Alice"))
+    ) == PureWindowsPath(r"C:\Users\Alice\AppData\Local\Gloss\cache")
 
 
 def test_empty_platform_environment_values_use_home_fallbacks(platform_support) -> None:
-    assert platform_support.default_data_dir(
-        "win32", {"LOCALAPPDATA": ""}, Path(r"C:\Users\Alice")
-    ) == Path(r"C:\Users\Alice\AppData\Local\Gloss\data")
+    assert PureWindowsPath(
+        platform_support.default_data_dir(
+            "win32", {"LOCALAPPDATA": ""}, Path(r"C:\Users\Alice")
+        )
+    ) == PureWindowsPath(r"C:\Users\Alice\AppData\Local\Gloss\data")
     assert platform_support.default_data_dir(
         "linux", {"XDG_DATA_HOME": ""}, Path("/home/alice")
     ) == Path("/home/alice/.local/share/gloss")
