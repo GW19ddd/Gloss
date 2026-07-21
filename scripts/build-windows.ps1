@@ -1,15 +1,26 @@
 param([string]$Python = "python")
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
+$buildVenv = Join-Path $projectRoot "build\windows-venv"
+$buildPython = Join-Path $buildVenv "Scripts\python.exe"
+
 Push-Location $projectRoot
 try {
     & npm run build:frontend
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-    & $Python -m pip install -r backend/requirements.txt -r packaging/requirements-build.txt
+    if (-not (Test-Path -LiteralPath $buildPython)) {
+        & $Python -m venv $buildVenv
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    }
+
+    & $buildPython -m pip install --upgrade pip
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-    & $Python -m PyInstaller --noconfirm --clean packaging/Gloss.spec
+    & $buildPython -m pip install -r backend/requirements.txt -r packaging/requirements-build.txt
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+    & $buildPython -m PyInstaller --noconfirm --clean packaging/Gloss.spec
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     Write-Host "Gloss executable: $projectRoot\dist\Gloss.exe"

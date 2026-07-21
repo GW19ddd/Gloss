@@ -99,6 +99,20 @@ export interface Skill {
   argument_hint: string;
   allowed_tools: string[];
 }
+export type ProviderConnectionState = "unknown" | "checking" | "connected" | "error";
+export interface ProviderConnectionStatus {
+  status: ProviderConnectionState;
+  connected: boolean;
+  error: string;
+  checked_at: number | null;
+}
+export interface ProviderTestResult {
+  ok: boolean;
+  provider: string;
+  latency_ms?: number;
+  reply?: string;
+  error?: string;
+}
 export interface Summary {
   tldr: string;
   problem: string;
@@ -314,10 +328,18 @@ export const api = {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ provider }),
-    }).then((r) => j<{ ok: boolean; provider: string; latency_ms?: number; reply?: string; error?: string }>(r)),
+    }).then((r) => j<ProviderTestResult>(r)),
 
   getSettings: () =>
-    fetch("/api/settings").then((r) => j<{ config: any; available_providers: string[] }>(r)),
+    fetch("/api/settings").then((r) => j<{
+      config: any;
+      available_providers: string[];
+      provider_statuses: Record<string, ProviderConnectionStatus>;
+    }>(r)),
+  getProviderStatuses: () =>
+    fetch("/api/settings/status").then((r) =>
+      j<{ provider_statuses: Record<string, ProviderConnectionStatus> }>(r),
+    ),
   updateSettings: (patch: any) =>
     fetch("/api/settings", {
       method: "POST",

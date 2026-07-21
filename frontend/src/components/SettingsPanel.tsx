@@ -24,6 +24,7 @@ export function SettingsPanel() {
   const notify = useStore((s) => s.notify);
   const uiLang = useStore((s) => s.uiLang);
   const setUiLang = useStore((s) => s.setUiLang);
+  const checkProvider = useStore((s) => s.checkProvider);
   const [cfg, setCfg] = useState<any>(null);
   const [providers, setProviders] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -61,16 +62,18 @@ export function SettingsPanel() {
     }));
   }
 
-  async function save() {
+  async function save(checkConnection = true) {
     setSaving(true);
     try {
       await api.updateSettings({
+        confirm_exit: cfg.confirm_exit !== false,
         provider: cfg.provider,
         output_language: cfg.output_language,
         target_language: cfg.target_language,
         providers: cfg.providers,
       });
       await loadSettings();
+      if (checkConnection) await checkProvider(cfg.provider);
       notify("Settings saved");
     } finally {
       setSaving(false);
@@ -81,8 +84,8 @@ export function SettingsPanel() {
     setTesting(true);
     setTestResult(null);
     try {
-      await save(); // persist current selection/keys so we test exactly what's shown
-      const r = await api.testProvider(cfg.provider);
+      await save(false); // persist current selection/keys so we test exactly what's shown
+      const r = await checkProvider(cfg.provider);
       setTestResult(
         r.ok
           ? { ok: true, text: T.ok(r.provider, r.latency_ms) }
@@ -112,6 +115,16 @@ export function SettingsPanel() {
 
       <label>Reading mode / 阅读模式</label>
       <PdfModeToggle />
+
+      <label>Exit confirmation / 退出确认</label>
+      <label className="setting-toggle">
+        <input
+          type="checkbox"
+          checked={cfg.confirm_exit !== false}
+          onChange={(event) => setCfg({ ...cfg, confirm_exit: event.target.checked })}
+        />
+        <span>{uiLang === "zh" ? "关闭应用时显示退出提醒" : "Show a confirmation before quitting the app"}</span>
+      </label>
 
       <label>Active AI provider</label>
       <select value={cfg.provider} onChange={(e) => setCfg({ ...cfg, provider: e.target.value })}>

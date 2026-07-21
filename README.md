@@ -30,7 +30,7 @@ The model **defaults to your local `claude` CLI**. It also supports the local `c
 and **any OpenAI-compatible endpoint** (local vLLM, a claude proxy, etc.). It can even **load and run
 Claude / Codex skills** directly against the paper you're reading.
 
-Everything runs on your own machine: one process, one port, open a browser and read.
+Everything runs on your own machine. Use Gloss as a native Windows app or open the web version in your browser.
 
 ---
 
@@ -77,12 +77,14 @@ Paste this into Claude Code or Codex:
 Install and run https://github.com/computersniper/gloss on this computer. Use the easiest supported method for this OS, preserve existing Gloss data, and verify /api/health before giving me the local URL.
 ```
 
-### Windows
+Gloss is available as a Windows desktop app and as a browser-based web app. Both keep the backend, papers, and generated results on your own machine.
+
+### Windows desktop app
 
 [Download **`Gloss.exe`**](https://github.com/computersniper/gloss/releases/latest/download/Gloss.exe)
-and double-click it.
+and double-click it. Gloss opens in its own desktop window, without a terminal or browser tab, and automatically selects a free local port.
 
-### Windows / Linux with npm or Bun
+### Web app — Windows / Linux with npm or Bun
 
 Requires Node.js 18+ and Python 3.11+:
 
@@ -95,6 +97,8 @@ npx gloss-local@latest
 # or
 bunx gloss-local@latest
 ```
+
+Then open the local URL shown in the terminal (normally `http://localhost:8010`) in your browser.
 
 The first run installs the backend into an isolated environment; later runs reuse it. For a permanent
 command, run `npm install --global gloss-local` or `bun add --global gloss-local`, then start Gloss with

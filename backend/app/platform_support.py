@@ -16,6 +16,12 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 
 
+_WINDOWS_CREATE_NEW_PROCESS_GROUP = getattr(
+    subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200
+)
+_WINDOWS_CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+
+
 class ProcessCancelledError(RuntimeError):
     """Raised when a caller requests cancellation of spawned blocking work."""
 
@@ -118,7 +124,11 @@ def _is_windows(platform_name: str) -> bool:
 
 def subprocess_group_options(platform_name: str = sys.platform) -> dict:
     if _is_windows(platform_name):
-        return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+        return {
+            "creationflags": (
+                _WINDOWS_CREATE_NEW_PROCESS_GROUP | _WINDOWS_CREATE_NO_WINDOW
+            )
+        }
     return {"start_new_session": True}
 
 
@@ -135,6 +145,7 @@ async def terminate_process_tree(process, platform_name: str = sys.platform) -> 
             "/F",
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
+            creationflags=_WINDOWS_CREATE_NO_WINDOW,
         )
         await killer.wait()
     else:

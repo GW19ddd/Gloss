@@ -29,7 +29,7 @@ React / PDF.js 的阅读器界面，并驱动一个大模型帮你速览、研�
 此外还支持本机的 `codex` CLI、Anthropic API，以及 **任意 OpenAI 兼容端点**（本地 vLLM、claude 代理等）。
 它还能 **加载并运行 Claude / Codex 技能（skills）**，直接作用在你正在读的这篇论文上。
 
-一切都跑在你自己的机器上：一个进程、一个端口，打开浏览器就能读。
+一切都跑在你自己的机器上：既可以使用 Windows 桌面应用，也可以在浏览器中打开网页版。
 
 ---
 
@@ -76,12 +76,14 @@ React / PDF.js 的阅读器界面，并驱动一个大模型帮你速览、研�
 请在这台电脑上安装并运行 https://github.com/computersniper/gloss。选择当前系统最简单的安装方式，保留已有 Gloss 数据，确认 /api/health 正常后告诉我本地地址。
 ```
 
-### Windows
+Gloss 同时提供 Windows 桌面应用和浏览器网页版。两者的后端、论文与生成结果都保存在你自己的电脑上。
+
+### Windows 桌面应用
 
 [下载 **`Gloss.exe`**](https://github.com/computersniper/gloss/releases/latest/download/Gloss.exe)，
-双击即可运行。
+双击即可在独立桌面窗口中运行，不会显示命令行窗口，也不会打开浏览器标签页；如果默认端口被占用，Gloss 会自动选择可用端口。
 
-### Windows / Linux：npm 或 Bun
+### 网页版——Windows / Linux，使用 npm 或 Bun
 
 需要 Node.js 18+ 和 Python 3.11+：
 
@@ -94,6 +96,8 @@ npx gloss-local@latest
 # 或
 bunx gloss-local@latest
 ```
+
+启动后，在浏览器中打开终端显示的本地地址（通常是 `http://localhost:8010`）。
 
 首次运行会自动创建隔离环境并安装后端依赖，以后直接复用。也可以运行
 `npm install --global gloss-local` 或 `bun add --global gloss-local` 永久安装，再用 `gloss`

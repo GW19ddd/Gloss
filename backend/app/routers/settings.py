@@ -1,9 +1,6 @@
 """Settings: view/update provider config (secrets masked on read)."""
 from __future__ import annotations
 
-import asyncio
-import time
-
 from fastapi import APIRouter
 from pydantic import BaseModel
 
@@ -14,6 +11,7 @@ router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 
 class SettingsPatch(BaseModel):
+    confirm_exit: bool | None = None
     provider: str | None = None
     output_language: str | None = None
     target_language: str | None = None
@@ -25,12 +23,20 @@ async def get_settings():
     return {
         "config": config.public_config(),
         "available_providers": registry.available(),
+        "provider_statuses": registry.provider_statuses(),
     }
+
+
+@router.get("/status")
+async def get_provider_statuses():
+    return {"provider_statuses": registry.provider_statuses()}
 
 
 @router.post("")
 async def update_settings(body: SettingsPatch):
     patch: dict = {}
+    if body.confirm_exit is not None:
+        patch["confirm_exit"] = body.confirm_exit
     if body.provider:
         patch["provider"] = body.provider
     if body.output_language:
@@ -46,6 +52,8 @@ async def update_settings(body: SettingsPatch):
                 pc.pop("api_key", None)
             cleaned[name] = pc
         patch["providers"] = cleaned
+        for name in cleaned:
+            registry.reset_status(name)
     config.save_config(patch)
     return {"config": config.public_config()}
 
@@ -56,25 +64,6 @@ class TestBody(BaseModel):
 
 @router.post("/test")
 async def test_provider(body: TestBody):
-    """Ping a provider with a tiny completion to check it's reachable/authenticated."""
+    """Check connectivity; local CLIs use their fast login-status command."""
     provider = body.provider or config.load_config().get("provider")
-    t0 = time.time()
-    try:
-        text, _ = await asyncio.wait_for(
-            registry.complete(
-                "You are a connectivity check. Reply with exactly: OK",
-                [{"role": "user", "content": "ping"}],
-                provider=provider,
-            ),
-            timeout=90,
-        )
-        return {
-            "ok": True,
-            "provider": provider,
-            "latency_ms": int((time.time() - t0) * 1000),
-            "reply": (text or "").strip()[:80],
-        }
-    except asyncio.TimeoutError:
-        return {"ok": False, "provider": provider, "error": "timed out after 90s"}
-    except Exception as e:  # noqa: BLE001 — surface any provider error to the UI
-        return {"ok": False, "provider": provider, "error": str(e)[:400]}
+    return await registry.test_connection(provider)

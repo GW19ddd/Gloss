@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 from pathlib import Path
 
@@ -44,6 +45,7 @@ def test_npm_cli_supports_first_run_and_doctor() -> None:
 def test_windows_executable_packaging_is_wired_into_releases() -> None:
     launcher = ROOT / "packaging" / "windows_launcher.py"
     spec = ROOT / "packaging" / "Gloss.spec"
+    icon = ROOT / "packaging" / "gloss.ico"
     build_script = ROOT / "scripts" / "build-windows.ps1"
     workflow = ROOT / ".github" / "workflows" / "release.yml"
 
@@ -51,11 +53,104 @@ def test_windows_executable_packaging_is_wired_into_releases() -> None:
         assert expected.is_file(), f"missing packaging file: {expected.relative_to(ROOT)}"
 
     config = (ROOT / "backend" / "app" / "config.py").read_text(encoding="utf-8")
+    desktop_launcher = launcher.read_text(encoding="utf-8")
+    desktop_spec = spec.read_text(encoding="utf-8")
+    build_requirements = (ROOT / "packaging" / "requirements-build.txt").read_text(
+        encoding="utf-8"
+    )
     release = workflow.read_text(encoding="utf-8")
     assert "GLOSS_FRONTEND_DIST" in config
+    assert 'webview.create_window(' in desktop_launcher
+    assert 'gui="edgechromium"' in desktop_launcher
+    assert 'icon=str(icon_path)' in desktop_launcher
+    assert '"--headless"' in desktop_launcher
+    assert "import webbrowser" not in desktop_launcher
+    assert "_ensure_standard_streams" in desktop_launcher
+    assert "console=False" in desktop_spec
+    assert 'icon=str(project_root / "packaging" / "gloss.ico")' in desktop_spec
+    assert icon.is_file()
+    assert "pywebview==6.2.1" in build_requirements
     assert "./dist/Gloss.exe --version" in release
     assert "npm pack" in release
     assert "npm publish gloss-local-*.tgz" in release
+
+
+def test_windows_build_uses_an_isolated_virtual_environment() -> None:
+    script = (ROOT / "scripts" / "build-windows.ps1").read_text(encoding="utf-8")
+
+    assert '"build\\windows-venv"' in script
+    assert "& $buildPython -m pip install" in script
+    assert "& $buildPython -m PyInstaller" in script
+
+
+def test_windows_launcher_selects_the_next_available_port(monkeypatch) -> None:
+    launcher_path = ROOT / "packaging" / "windows_launcher.py"
+    spec = importlib.util.spec_from_file_location("gloss_windows_launcher", launcher_path)
+    assert spec is not None and spec.loader is not None
+    launcher = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(launcher)
+
+    monkeypatch.setattr(
+        launcher,
+        "_port_available",
+        lambda _host, port: port == 8012,
+    )
+
+    assert launcher._select_available_port("127.0.0.1", 8010) == 8012
+
+
+def test_windows_launcher_blocks_close_until_the_dialog_confirms(monkeypatch) -> None:
+    launcher_path = ROOT / "packaging" / "windows_launcher.py"
+    spec = importlib.util.spec_from_file_location("gloss_windows_exit", launcher_path)
+    assert spec is not None and spec.loader is not None
+    launcher = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(launcher)
+
+    scripts: list[str] = []
+    disabled: list[bool] = []
+
+    class ImmediateThread:
+        def __init__(self, *, target, **_kwargs):
+            self.target = target
+
+        def start(self):
+            self.target()
+
+    class Loaded:
+        @staticmethod
+        def is_set():
+            return True
+
+    class FakeWindow:
+        events = type("Events", (), {"loaded": Loaded()})()
+        destroyed = False
+
+        @staticmethod
+        def evaluate_js(script):
+            scripts.append(script)
+
+        def destroy(self):
+            self.destroyed = True
+
+    monkeypatch.setattr(launcher.threading, "Thread", ImmediateThread)
+    monkeypatch.setattr(launcher, "_exit_confirmation_enabled", lambda: True)
+    monkeypatch.setattr(
+        launcher,
+        "_disable_future_exit_confirmation",
+        lambda: disabled.append(True),
+    )
+
+    window = FakeWindow()
+    bridge = launcher.DesktopBridge()
+    bridge.bind(window)
+
+    assert bridge.on_closing() is False
+    assert scripts and launcher.EXIT_REQUEST_EVENT in scripts[0]
+    assert bridge.cancel_exit() is True
+    assert bridge.confirm_exit(True) is True
+    assert disabled == [True]
+    assert window.destroyed is True
+    assert bridge.on_closing() is None
 
 
 def test_native_linux_and_windows_wrappers_exist() -> None:
@@ -113,3 +208,33 @@ def test_normal_test_commands_include_frontend_regressions() -> None:
     assert frontend_scripts["test"] == "node --test tests/*.test.mjs"
     assert 'runPackage(packageManager(), ["test"], { cwd: FRONTEND })' in launcher
     assert "npm test" in workflow
+
+
+def test_top_bar_provider_switcher_exposes_status_and_brand_marks() -> None:
+    app = (ROOT / "frontend" / "src" / "App.tsx").read_text(encoding="utf-8")
+    switcher = (ROOT / "frontend" / "src" / "components" / "ProviderSwitcher.tsx").read_text(
+        encoding="utf-8"
+    )
+    styles = (ROOT / "frontend" / "src" / "styles.css").read_text(encoding="utf-8")
+
+    assert "<ProviderSwitcher />" in app
+    assert 'local_codex: { label: "Codex", kind: "openai" }' in switcher
+    assert 'local_claude: { label: "Claude", kind: "anthropic" }' in switcher
+    assert 'openai: { label: "Local API", kind: "local" }' in switcher
+    assert "provider-status-dot" in switcher
+    assert ".provider-status-dot.connected" in styles
+    assert ".provider-status-dot.checking" in styles
+
+
+def test_desktop_exit_dialog_warns_about_in_flight_work() -> None:
+    dialog = (ROOT / "frontend" / "src" / "components" / "ExitConfirmDialog.tsx").read_text(
+        encoding="utf-8"
+    )
+    settings = (ROOT / "frontend" / "src" / "components" / "SettingsPanel.tsx").read_text(
+        encoding="utf-8"
+    )
+
+    assert "正在导入的任务会被取消" in dialog
+    assert "Summary、Mind Map、Chat" in dialog
+    assert "下次不再提示" in dialog
+    assert "confirm_exit" in settings

@@ -52,6 +52,39 @@ def _effort() -> str:
 class LocalClaudeProvider(Provider):
     name = "local_claude"
 
+    async def test_connection(self) -> str:
+        """Check subscription login without launching a full Claude inference."""
+        cmd = resolve_cli_command("claude") + ["auth", "status", "--json"]
+        env, cwd = _sandbox_env()
+        proc = None
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+                cwd=cwd,
+                **subprocess_group_options(),
+            )
+            try:
+                out, err = await asyncio.wait_for(proc.communicate(), timeout=20)
+            except asyncio.TimeoutError:
+                await terminate_process_tree(proc)
+                raise RuntimeError("claude auth status timed out after 20s")
+            detail = (out or err).decode(errors="replace").strip()
+            if proc.returncode != 0:
+                raise RuntimeError(detail or f"claude auth status exited {proc.returncode}")
+            try:
+                status = json.loads(detail)
+            except json.JSONDecodeError:
+                status = {}
+            if status and not status.get("loggedIn", False):
+                raise RuntimeError("Claude CLI is not signed in")
+            return detail or "Claude is signed in"
+        finally:
+            if proc is not None and proc.returncode is None:
+                await terminate_process_tree(proc)
+
     async def complete(
         self, system: str, messages: list[Message], model: str | None = None
     ) -> tuple[str, dict]:

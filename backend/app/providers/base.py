@@ -58,6 +58,14 @@ class Provider:
 
     name = "base"
 
+    async def test_connection(self) -> str:
+        """Run the smallest provider request that proves the connection works."""
+        text, _ = await self.complete(
+            "You are a connectivity check. Reply with exactly: OK",
+            [{"role": "user", "content": "ping"}],
+        )
+        return (text or "").strip()
+
     async def stream(
         self, system: str, messages: list[Message], model: str | None = None
     ) -> AsyncIterator[str]:

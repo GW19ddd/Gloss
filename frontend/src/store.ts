@@ -1,5 +1,13 @@
 import { create } from "zustand";
-import { api, Highlight, ImportJob, PagesResponse, Paper } from "./api/client";
+import {
+  api,
+  Highlight,
+  ImportJob,
+  PagesResponse,
+  Paper,
+  ProviderConnectionStatus,
+  ProviderTestResult,
+} from "./api/client";
 import { mergeImportJobSnapshots } from "./importQueue.mjs";
 
 let importMutation = 0;
@@ -28,6 +36,7 @@ interface State {
   scholarView: { key: string | null; query: string }; // persists across tab switches
   providers: string[];
   provider: string;
+  providerStatuses: Record<string, ProviderConnectionStatus>;
   gotoPage: number | null;
   flash: { page: number; rects: [number, number, number, number][]; id: number } | null;
   toast: string | null;
@@ -47,6 +56,9 @@ interface State {
   setSelection: (s: Selection | null) => void;
   refreshHighlights: () => Promise<void>;
   loadSettings: () => Promise<void>;
+  refreshProviderStatuses: () => Promise<void>;
+  checkProvider: (provider: string) => Promise<ProviderTestResult>;
+  switchProvider: (provider: string) => Promise<void>;
   setGoto: (p: number | null) => void;
   notify: (m: string | null) => void;
   runSelectionAction: (kind: "explain" | "translate" | "ask") => void;
@@ -68,6 +80,7 @@ export const useStore = create<State>((set, get) => ({
   uiLang: (localStorage.getItem("gloss.uiLang") as "en" | "zh") || "en",
   providers: [],
   provider: "local_claude",
+  providerStatuses: {},
   gotoPage: null,
   flash: null,
   toast: null,
@@ -201,11 +214,79 @@ export const useStore = create<State>((set, get) => ({
       set({
         providers: s.available_providers,
         provider: s.config.provider,
+        providerStatuses: s.provider_statuses || {},
         targetLanguage: s.config.target_language,
         outputLanguage: s.config.output_language || s.config.target_language,
       });
     } catch {
       /* backend not ready */
+    }
+  },
+  refreshProviderStatuses: async () => {
+    try {
+      const result = await api.getProviderStatuses();
+      set({ providerStatuses: result.provider_statuses || {} });
+    } catch {
+      /* backend not ready */
+    }
+  },
+  checkProvider: async (provider) => {
+    set((state) => ({
+      providerStatuses: {
+        ...state.providerStatuses,
+        [provider]: {
+          status: "checking",
+          connected: false,
+          error: "",
+          checked_at: state.providerStatuses[provider]?.checked_at || null,
+        },
+      },
+    }));
+    try {
+      const result = await api.testProvider(provider);
+      set((state) => ({
+        providerStatuses: {
+          ...state.providerStatuses,
+          [provider]: {
+            status: result.ok ? "connected" : "error",
+            connected: result.ok,
+            error: result.error || "",
+            checked_at: Date.now() / 1000,
+          },
+        },
+      }));
+      return result;
+    } catch (error: any) {
+      const message = String(error?.message || error);
+      const result = { ok: false, provider, error: message };
+      set((state) => ({
+        providerStatuses: {
+          ...state.providerStatuses,
+          [provider]: {
+            status: "error",
+            connected: false,
+            error: message,
+            checked_at: Date.now() / 1000,
+          },
+        },
+      }));
+      return result;
+    }
+  },
+  switchProvider: async (provider) => {
+    const previous = get().provider;
+    if (provider === previous) {
+      await get().checkProvider(provider);
+      return;
+    }
+    set({ provider });
+    try {
+      await api.updateSettings({ provider });
+      get().notify(`AI provider: ${provider}`);
+      await get().checkProvider(provider);
+    } catch (error: any) {
+      set({ provider: previous });
+      get().notify(`Provider switch failed: ${String(error?.message || error)}`);
     }
   },
   setGoto: (p) => set({ gotoPage: p }),

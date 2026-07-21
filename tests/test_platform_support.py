@@ -55,6 +55,14 @@ def test_windows_uses_local_app_data(platform_support) -> None:
     ) == PureWindowsPath(r"C:\Users\Alice\AppData\Local\Gloss\cache")
 
 
+def test_windows_provider_processes_never_open_a_console_window(platform_support) -> None:
+    options = platform_support.subprocess_group_options("win32")
+    flags = options["creationflags"]
+
+    assert flags & platform_support._WINDOWS_CREATE_NEW_PROCESS_GROUP
+    assert flags & platform_support._WINDOWS_CREATE_NO_WINDOW
+
+
 def test_empty_platform_environment_values_use_home_fallbacks(platform_support) -> None:
     assert PureWindowsPath(
         platform_support.default_data_dir(

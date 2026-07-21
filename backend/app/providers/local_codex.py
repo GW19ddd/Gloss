@@ -28,6 +28,31 @@ def _cfg() -> dict:
 class LocalCodexProvider(Provider):
     name = "local_codex"
 
+    async def test_connection(self) -> str:
+        """Check subscription login without launching a full Codex inference."""
+        cmd = resolve_cli_command("codex") + ["login", "status"]
+        proc = None
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=str(ensure_codex_sandbox()),
+                **subprocess_group_options(),
+            )
+            try:
+                out, err = await asyncio.wait_for(proc.communicate(), timeout=20)
+            except asyncio.TimeoutError:
+                await terminate_process_tree(proc)
+                raise RuntimeError("codex login status timed out after 20s")
+            detail = (out or err).decode(errors="replace").strip()
+            if proc.returncode != 0:
+                raise RuntimeError(detail or f"codex login status exited {proc.returncode}")
+            return detail or "Codex is signed in"
+        finally:
+            if proc is not None and proc.returncode is None:
+                await terminate_process_tree(proc)
+
     async def complete(
         self, system: str, messages: list[Message], model: str | None = None
     ) -> tuple[str, dict]:

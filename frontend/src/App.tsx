@@ -4,6 +4,8 @@ import { Library } from "./components/Library";
 import { Outline } from "./components/Outline";
 import { SidePanel } from "./components/SidePanel";
 import { Logo } from "./components/Logo";
+import { ProviderSwitcher } from "./components/ProviderSwitcher";
+import { ExitConfirmDialog } from "./components/ExitConfirmDialog";
 import { PdfViewer } from "./pdf/PdfViewer";
 import { startImportJobPolling } from "./importQueue.mjs";
 
@@ -13,8 +15,9 @@ export default function App() {
   const closePaper = useStore((s) => s.closePaper);
   const loadPapers = useStore((s) => s.loadPapers);
   const loadSettings = useStore((s) => s.loadSettings);
+  const checkProvider = useStore((s) => s.checkProvider);
+  const refreshProviderStatuses = useStore((s) => s.refreshProviderStatuses);
   const loadImportJobs = useStore((s) => s.loadImportJobs);
-  const provider = useStore((s) => s.provider);
   const toast = useStore((s) => s.toast);
   const notify = useStore((s) => s.notify);
   const uiLang = useStore((s) => s.uiLang);
@@ -38,10 +41,18 @@ export default function App() {
     document.documentElement.dataset.theme = localStorage.getItem("gloss.theme") || "midnight";
     document.documentElement.dataset.pdf = localStorage.getItem("gloss.pdfMode") || "light";
     loadPapers();
-    loadSettings();
+    loadSettings().then(() => {
+      const activeProvider = useStore.getState().provider;
+      void checkProvider(activeProvider);
+    });
   }, []);
 
   useEffect(() => startImportJobPolling(loadImportJobs, 1000), [loadImportJobs]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => void refreshProviderStatuses(), 5000);
+    return () => window.clearInterval(timer);
+  }, [refreshProviderStatuses]);
 
   useEffect(() => {
     localStorage.setItem("gloss.sideWidth", String(sideWidth));
@@ -102,7 +113,7 @@ export default function App() {
           </div>
         )}
         <div className="spacer" />
-        <div className="provider-badge" title={uiLang === "zh" ? "当前 AI 提供方" : "Active AI provider"}>⚡ {provider}</div>
+        <ProviderSwitcher />
       </header>
 
       {view === "library" ? (
@@ -130,6 +141,7 @@ export default function App() {
       )}
 
       {toast && <div className="toast">{toast}</div>}
+      <ExitConfirmDialog />
     </div>
   );
 }
