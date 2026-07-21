@@ -14,6 +14,12 @@
 
 <p align="center"><a href="./README.zh.md"><b>中文文档 →</b></a> · <a href="./CHANGELOG.md"><b>Changelog</b></a></p>
 
+<p align="center">
+  <a href="https://www.npmjs.com/package/gloss-local"><img src="https://img.shields.io/npm/v/gloss-local?label=npm" alt="npm version" /></a>
+  <a href="https://github.com/computersniper/gloss/releases/latest"><img src="https://img.shields.io/github/v/release/computersniper/gloss?label=release" alt="GitHub release" /></a>
+  <a href="https://github.com/computersniper/gloss/actions/workflows/ci.yml"><img src="https://github.com/computersniper/gloss/actions/workflows/ci.yml/badge.svg" alt="CI status" /></a>
+</p>
+
 ---
 
 Gloss (旁注) is a **self-hosted, locally-run** research-paper reader. A FastAPI backend serves a
@@ -61,133 +67,58 @@ Everything runs on your own machine: one process, one port, open a browser and r
 
 ---
 
-## 🚀 Install & run (Windows / Linux)
+## 🚀 Install & run
 
-### Windows: download and run
+### Let Claude Code or Codex install it
 
-Download **`Gloss.exe`** from the [latest release](https://github.com/computersniper/gloss/releases/latest),
-then double-click it. The portable app includes Gloss's frontend, Python runtime, and backend dependencies;
-Git, Node.js, Python, and a source checkout are not required.
-
-Gloss can use an existing, signed-in Claude Code or Codex CLI subscription. Choose **Local Claude**
-or **Local Codex** in Settings—no API key or separate API billing is required. The corresponding CLI
-must already be installed and signed in on this computer.
-
-### Windows / Linux: one command with npm
-
-If Node.js 18+ and Python 3.11+ are already installed, run:
-
-```bash
-npx gloss-local@latest
-```
-
-On Debian / Ubuntu, install the standard venv component once if it is not already present:
-`sudo apt install python3-venv` (or the versioned package such as `python3.12-venv`).
-
-No clone is needed. On its first run, the package creates an isolated Python environment in the
-standard Gloss cache directory, installs the backend dependencies, and starts the app. Later runs
-reuse that environment. You can also install the command permanently with
-`npm install --global gloss-local`, then run `gloss` anywhere.
-
-### Let Claude Code or Codex install the source version
-
-Open Claude Code or Codex in a terminal and paste this prompt:
+Paste this into Claude Code or Codex:
 
 ```text
-Install and run https://github.com/computersniper/gloss on this computer.
-Detect whether the system is Windows or Linux and adapt every command accordingly.
-If the repository is not present, clone it; otherwise use the current checkout without
-overwriting local changes. Check for Node.js 20.19+ and Python 3.11+, and ask before
-installing missing system-level prerequisites. Use npm by default (Bun is also supported),
-run the project's setup command, start Gloss, verify GET /api/health returns HTTP 200,
-and tell me the local URL. Preserve any existing Gloss data and configuration.
+Install and run https://github.com/computersniper/gloss on this computer. Use the easiest supported method for this OS, preserve existing Gloss data, and verify /api/health before giving me the local URL.
 ```
 
-The agent can handle the commands; the complete source steps are below for transparency
-and troubleshooting.
+### Windows
 
-### Development installation from source
+[Download **`Gloss.exe`**](https://github.com/computersniper/gloss/releases/latest/download/Gloss.exe)
+and double-click it.
 
-#### 1. Prerequisites and source
+### Windows / Linux with npm or Bun
 
-Install Git, Node.js 20.19+, and Python 3.11+, then clone the repository:
+Requires Node.js 18+ and Python 3.11+:
+
+```bash
+node --version
+python --version
+npm --version          # or: bun --version
+
+npx gloss-local@latest
+# or
+bunx gloss-local@latest
+```
+
+On Windows, use `py --version` if `python --version` is unavailable.
+
+The first run installs the backend into an isolated environment; later runs reuse it. For a permanent
+command, run `npm install --global gloss-local` or `bun add --global gloss-local`, then start Gloss with
+`gloss`. Debian / Ubuntu may also need `sudo apt install python3-venv`.
+
+### From source (developers)
+
+Requires Git, Node.js 20.19+, and Python 3.11+:
 
 ```bash
 git clone https://github.com/computersniper/gloss.git
 cd gloss
-node --version
-python --version
+npm run setup
+npm start
+# or: bun run setup && bun run start
 ```
 
-On Windows, `py --version` also works. If Python is installed in a custom location,
-set `GLOSS_PYTHON` or pass `--python <path>` to the setup command.
-On Debian / Ubuntu, also install `python3-venv` if `python -m venv` is unavailable.
+Open `http://localhost:8010`. Use `--port` and `--host` to change the address, for example:
+`npx gloss-local@latest --port 6006 --host 127.0.0.1`.
 
-#### 2. Install dependencies and start
-
-The same npm commands work in PowerShell, Command Prompt, and Bash:
-
-```bash
-npm run setup        # first time only: backend venv + dependencies + frontend build
-npm start            # serve the app on :8010
-npm run dev          # optional: backend and frontend hot reload
-```
-
-Or use Bun:
-
-```bash
-bun run setup
-bun run start
-bun run dev           # optional: hot reload
-```
-
-#### 3. Native wrappers (optional)
-
-Platform-native wrappers are also included:
-
-```bash
-# Linux
-scripts/setup.sh
-scripts/run.sh
-
-# Windows PowerShell
-.\scripts\setup.ps1
-.\scripts\run.ps1
-```
-
-#### 4. Verify and open
-
-Open **`http://localhost:8010`** (or run `curl http://localhost:8010/api/health`),
-paste an arXiv id such as `1706.03762` or upload a PDF, and start reading.
-
-Port / host are overridable via environment variables:
-
-```bash
-GLOSS_PORT=6006 GLOSS_HOST=0.0.0.0 scripts/run.sh
-```
-
-- `GLOSS_PORT` — service port (default `8010`)
-- `GLOSS_HOST` — bind address (default `0.0.0.0`)
-- `GLOSS_DATA_DIR` — override the data directory
-- `GLOSS_CACHE_DIR` — override dependency/download caches
-- `GLOSS_IMPORT_TIMEOUT` — paper-download deadline in seconds (default/max `300`)
-- `GLOSS_IMPORT_PARSE_TIMEOUT` — PDF-parsing deadline in seconds (default/max `120`)
-- `GLOSS_LEGACY_ENCODING` — decode pre-UTF-8 config/paper metadata after moving
-  data between Windows locales (for example, `cp936` or `cp1252`)
-
-By default, persistent data uses the operating system's standard application-data location:
-
-- Windows: `%LOCALAPPDATA%\Gloss\data`
-- Linux: `$XDG_DATA_HOME/gloss`, or `~/.local/share/gloss`
-
-Caches use `%LOCALAPPDATA%\Gloss\cache` on Windows and `$XDG_CACHE_HOME/gloss`
-(or `~/.cache/gloss`) on Linux. An existing non-empty `backend/data` directory is
-kept automatically for backward compatibility.
-
-The server listens on `0.0.0.0`, so from another machine reach it via your provider's port mapping or an
-SSH tunnel (e.g. `ssh -CNg -L <port>:127.0.0.1:<port> -p <ssh-port> user@host`, then open `http://localhost:<port>`).
-
-> You can also pass options directly, for example `npm start -- --port 6006 --host 127.0.0.1`.
+Persistent data is stored in `%LOCALAPPDATA%\Gloss\data` on Windows and
+`$XDG_DATA_HOME/gloss` (default `~/.local/share/gloss`) on Linux. Set `GLOSS_DATA_DIR` to override it.
 
 ---
 

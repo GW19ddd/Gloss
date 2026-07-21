@@ -14,6 +14,12 @@
 
 <p align="center"><a href="./README.md"><b>English →</b></a> · <a href="./CHANGELOG.md"><b>版本记录</b></a></p>
 
+<p align="center">
+  <a href="https://www.npmjs.com/package/gloss-local"><img src="https://img.shields.io/npm/v/gloss-local?label=npm" alt="npm 版本" /></a>
+  <a href="https://github.com/computersniper/gloss/releases/latest"><img src="https://img.shields.io/github/v/release/computersniper/gloss?label=release" alt="GitHub 版本" /></a>
+  <a href="https://github.com/computersniper/gloss/actions/workflows/ci.yml"><img src="https://github.com/computersniper/gloss/actions/workflows/ci.yml/badge.svg" alt="CI 状态" /></a>
+</p>
+
 ---
 
 Gloss（旁注）是一个 **自托管、本地运行** 的科研论文阅读工具。它用一个 FastAPI 后端提供基于
@@ -60,131 +66,58 @@ React / PDF.js 的阅读器界面，并驱动一个大模型帮你速览、研�
 
 ---
 
-## 🚀 安装与运行（Windows / Linux）
+## 🚀 安装与运行
 
-### Windows：下载即用
+### 交给 Claude Code 或 Codex 安装 😄
 
-从 [GitHub 最新版本](https://github.com/computersniper/gloss/releases/latest) 下载
-**`Gloss.exe`**，双击即可运行。这个便携版已经包含 Gloss 前端、Python 运行时和后端依赖，
-不要求安装 Git、Node.js、Python，也不需要 clone 源码。
-
-Gloss 可以直接使用这台电脑上已登录的 Claude Code 或 Codex CLI 订阅。在设置里选择
-**Local Claude** 或 **Local Codex** 即可，不需要填写 API Key，也不会产生额外的 API 账单；
-对应的 CLI 仍需事先安装并在本机完成登录。
-
-### Windows / Linux：npm 一条命令
-
-如果电脑上已经有 Node.js 18+ 和 Python 3.11+，直接运行：
-
-```bash
-npx gloss-local@latest
-```
-
-Debian / Ubuntu 如果尚未提供 venv，需要先安装一次系统组件：
-`sudo apt install python3-venv`（也可能是 `python3.12-venv` 这样的版本包）。
-
-无需 clone。首次运行会在系统规范的 Gloss 缓存目录中创建隔离的 Python 环境、安装后端依赖，
-随后自动启动；以后会复用这个环境。也可以运行 `npm install --global gloss-local` 永久安装，
-之后在任意目录执行 `gloss`。
-
-### 交给 Claude Code 或 Codex 安装源码版 😄
-
-在终端中打开 Claude Code 或 Codex，把下面这段提示词直接交给它：
+把下面这句话发给 Claude Code 或 Codex：
 
 ```text
-请在这台电脑上安装并运行 https://github.com/computersniper/gloss。
-先识别系统是 Windows 还是 Linux，并使用适合当前系统的命令。如果仓库尚未存在，
-请先 clone；如果当前已经在仓库中，请直接使用当前工作区，不要覆盖本地修改。
-检查 Node.js 20.19+ 和 Python 3.11+；如缺少系统级依赖，先询问我再安装。
-默认使用 npm（也支持 Bun），执行项目的 setup 命令并启动 Gloss，确认
-GET /api/health 返回 HTTP 200，最后告诉我本地访问地址。保留已有的 Gloss 数据和配置。
+请在这台电脑上安装并运行 https://github.com/computersniper/gloss。选择当前系统最简单的安装方式，保留已有 Gloss 数据，确认 /api/health 正常后告诉我本地地址。
 ```
 
-源码安装和启动命令可以都交给它执行；为了方便检查和排错，下面仍给出完整步骤。
+### Windows
 
-### 从源码安装（开发者）
+[下载 **`Gloss.exe`**](https://github.com/computersniper/gloss/releases/latest/download/Gloss.exe)，
+双击即可运行。
 
-#### 1. 准备环境并获取源码
+### Windows / Linux：npm 或 Bun
 
-先安装 Git、Node.js 20.19+ 和 Python 3.11+，然后克隆仓库：
+需要 Node.js 18+ 和 Python 3.11+：
+
+```bash
+node --version
+python --version
+npm --version          # 或：bun --version
+
+npx gloss-local@latest
+# 或
+bunx gloss-local@latest
+```
+
+Windows 如果无法使用 `python --version`，可以改用 `py --version`。
+
+首次运行会自动创建隔离环境并安装后端依赖，以后直接复用。也可以运行
+`npm install --global gloss-local` 或 `bun add --global gloss-local` 永久安装，再用 `gloss`
+启动。Debian / Ubuntu 可能还需要执行 `sudo apt install python3-venv`。
+
+### 从源码运行（开发者）
+
+需要 Git、Node.js 20.19+ 和 Python 3.11+：
 
 ```bash
 git clone https://github.com/computersniper/gloss.git
 cd gloss
-node --version
-python --version
+npm run setup
+npm start
+# 或：bun run setup && bun run start
 ```
 
-Windows 也可以用 `py --version`。如果 Python 位于自定义路径，可设置
-`GLOSS_PYTHON`，或给 setup 命令传入 `--python <路径>`。
-Debian / Ubuntu 若无法运行 `python -m venv`，还需要安装 `python3-venv`。
+打开 `http://localhost:8010`。可以用 `--port` 和 `--host` 修改地址，例如：
+`npx gloss-local@latest --port 6006 --host 127.0.0.1`。
 
-#### 2. 安装依赖并启动
-
-PowerShell、命令提示符和 Bash 都可以使用同一套 npm 命令：
-
-```bash
-npm run setup        # 首次：创建后端 venv、安装依赖、构建前端
-npm start            # 在 :8010 启动应用
-npm run dev          # 可选：后端和前端热重载
-```
-
-也可以使用 Bun：
-
-```bash
-bun run setup
-bun run start
-bun run dev           # 可选：热重载
-```
-
-#### 3. 系统原生脚本（可选）
-
-项目也提供系统原生包装脚本：
-
-```bash
-# Linux
-scripts/setup.sh
-scripts/run.sh
-
-# Windows PowerShell
-.\scripts\setup.ps1
-.\scripts\run.ps1
-```
-
-#### 4. 验证并打开
-
-浏览器打开 **`http://localhost:8010`**（也可以运行
-`curl http://localhost:8010/api/health`），粘贴一个 arXiv id（例如 `1706.03762`）
-或上传 PDF，点开卡片就能读。
-
-端口 / 监听地址可用环境变量覆盖：
-
-```bash
-GLOSS_PORT=6006 GLOSS_HOST=0.0.0.0 scripts/run.sh
-```
-
-- `GLOSS_PORT` —— 服务端口（默认 `8010`）
-- `GLOSS_HOST` —— 监听地址（默认 `0.0.0.0`）
-- `GLOSS_DATA_DIR` —— 覆盖数据目录
-- `GLOSS_CACHE_DIR` —— 覆盖依赖和下载缓存目录
-- `GLOSS_IMPORT_TIMEOUT` —— 下载论文的等待秒数（默认/上限 `300`）
-- `GLOSS_IMPORT_PARSE_TIMEOUT` —— 解析 PDF 的等待秒数（默认/上限 `120`）
-- `GLOSS_LEGACY_ENCODING` —— 数据跨 Windows 区域设置迁移后，用指定编码读取
-  旧版非 UTF-8 配置和论文元数据（例如 `cp936` 或 `cp1252`）
-
-默认会把持久数据放到操作系统规范的应用数据目录：
-
-- Windows：`%LOCALAPPDATA%\Gloss\data`
-- Linux：`$XDG_DATA_HOME/gloss`，未设置时为 `~/.local/share/gloss`
-
-缓存默认位于 Windows 的 `%LOCALAPPDATA%\Gloss\cache`，或 Linux 的
-`$XDG_CACHE_HOME/gloss`（未设置时为 `~/.cache/gloss`）。若升级前已有非空的
-`backend/data`，为避免丢失旧数据，程序会继续使用它。
-
-服务监听在 `0.0.0.0`，从别的电脑访问可用服务商的端口映射或 SSH 转发
-（如 `ssh -CNg -L <端口>:127.0.0.1:<端口> -p <SSH端口> user@host`，然后打开 `http://localhost:<端口>`）。
-
-> 也可以直接传参数，例如 `npm start -- --port 6006 --host 127.0.0.1`。
+数据默认保存在 Windows 的 `%LOCALAPPDATA%\Gloss\data`，以及 Linux 的
+`$XDG_DATA_HOME/gloss`（默认为 `~/.local/share/gloss`）；可用 `GLOSS_DATA_DIR` 修改。
 
 ---
 
