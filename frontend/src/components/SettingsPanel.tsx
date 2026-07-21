@@ -212,7 +212,7 @@ export function SettingsPanel() {
           onChange={(e) => setProv("openai", "api_key", e.target.value)} />
       </fieldset>
 
-      <button className="primary" onClick={save} disabled={saving}>
+      <button className="primary" onClick={() => void save()} disabled={saving}>
         {saving ? "Saving…" : "Save settings"}
       </button>
     </div>

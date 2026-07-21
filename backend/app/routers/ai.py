@@ -1,11 +1,16 @@
 """AI feature endpoints: summarize, explain, translate, auto-highlight, chat (SSE)."""
 from __future__ import annotations
 
+import asyncio
+import base64
+import binascii
 import json
+from contextlib import asynccontextmanager
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 from ..features import chat as chat_feat
 from ..features import explain as explain_feat
@@ -15,8 +20,20 @@ from ..features import notes as notes_feat
 from ..features import summarize as summarize_feat
 from ..features import translate as translate_feat
 from ..library import store
+from ..providers import registry
 
 router = APIRouter(prefix="/api", tags=["ai"])
+_CHAT_LOCKS: dict[str, asyncio.Lock] = {}
+
+
+@asynccontextmanager
+async def _serialize_chat(chat_id: str | None):
+    if not chat_id:
+        yield
+        return
+    lock = _CHAT_LOCKS.setdefault(chat_id, asyncio.Lock())
+    async with lock:
+        yield
 
 
 class Override(BaseModel):
@@ -43,9 +60,31 @@ class TranslateBody(Override):
     page_end: int | None = None
 
 
+class ChatAttachment(BaseModel):
+    id: str = Field(min_length=1, max_length=80)
+    kind: Literal["pdf_region"] = "pdf_region"
+    page: int = Field(ge=0)
+    image_data_url: str = Field(max_length=8_000_000)
+    extracted_text: str = Field(default="", max_length=30_000)
+    bounds: tuple[float, float, float, float]
+
+    @field_validator("image_data_url")
+    @classmethod
+    def validate_image_data_url(cls, value: str) -> str:
+        prefix = "data:image/png;base64,"
+        if not value.startswith(prefix):
+            raise ValueError("chat attachment must be a base64 PNG data URL")
+        try:
+            base64.b64decode(value[len(prefix):], validate=True)
+        except (ValueError, binascii.Error) as error:
+            raise ValueError("chat attachment contains invalid base64 data") from error
+        return value
+
+
 class ChatMessage(BaseModel):
     role: str
     content: str
+    attachments: list[ChatAttachment] = Field(default_factory=list, max_length=4)
 
 
 class ChatBody(Override):
@@ -187,26 +226,59 @@ async def autohighlight(paper_id: str, body: Override):
 @router.post("/chat")
 async def chat(body: ChatBody):
     messages = [m.model_dump() for m in body.messages]
+    paper_id = body.paper_id
+    if body.chat_id:
+        chat_record = store.get_chat(body.chat_id)
+        if not chat_record:
+            raise HTTPException(404, "chat not found")
+        if paper_id and chat_record["paper_id"] != paper_id:
+            raise HTTPException(400, "chat does not belong to this paper")
+        paper_id = paper_id or chat_record["paper_id"]
 
     async def gen():
         acc = []
+        session_state: dict = {}
         try:
-            async for delta in chat_feat.chat_stream(
-                body.paper_id, messages, selection=body.selection,
-                language=body.language, provider=body.provider, model=body.model,
-            ):
-                acc.append(delta)
-                yield f"data: {json.dumps({'delta': delta})}\n\n"
+            async with _serialize_chat(body.chat_id):
+                chat_record = store.get_chat(body.chat_id) if body.chat_id else None
+                should_auto_title = bool(
+                    chat_record
+                    and chat_record.get("title") == "Chat"
+                    and not store.chat_has_messages(body.chat_id)
+                )
+                async for delta in chat_feat.chat_stream(
+                    paper_id,
+                    messages,
+                    chat_id=body.chat_id,
+                    session_state=session_state,
+                    selection=body.selection,
+                    language=body.language,
+                    provider=body.provider,
+                    model=body.model,
+                ):
+                    acc.append(delta)
+                    yield f"data: {json.dumps({'delta': delta})}\n\n"
+
+                # Persist the transcript and the provider-session pointer in one
+                # transaction, but only after the provider completed cleanly.
+                if body.chat_id and messages:
+                    title = None
+                    if should_auto_title:
+                        title = chat_feat.summarize_chat_title(
+                            messages[-1]["content"], "".join(acc)
+                        )
+                    store.commit_chat_turn(
+                        body.chat_id,
+                        messages[-1]["content"],
+                        "".join(acc),
+                        provider=session_state.get("provider")
+                        or registry.resolve_provider_name(body.provider),
+                        provider_session_id=session_state.get("provider_session_id"),
+                        title=title,
+                        user_attachments=messages[-1].get("attachments", []),
+                    )
         except Exception as e:  # surface errors to the client stream
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
-        else:
-            # persist to chat history if a chat_id was supplied
-            if body.chat_id and messages:
-                try:
-                    store.add_message(body.chat_id, "user", messages[-1]["content"])
-                    store.add_message(body.chat_id, "assistant", "".join(acc))
-                except Exception:
-                    pass
         yield f"data: {json.dumps({'done': True})}\n\n"
 
     return StreamingResponse(gen(), media_type="text/event-stream")

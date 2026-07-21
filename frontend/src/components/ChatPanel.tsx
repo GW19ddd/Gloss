@@ -1,18 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { api, streamPost } from "../api/client";
+import { api, streamPost, type Chat, type ChatAttachment } from "../api/client";
 import { useStore } from "../store";
 import { Markdown } from "./Markdown";
 
 interface Msg {
   role: "user" | "assistant";
   content: string;
+  attachments: ChatAttachment[];
 }
-interface Chat {
-  id: string;
-  title: string;
-  created_at: number;
-}
-
 // module-scoped so a given "ask" selection is sent exactly once, even across remounts
 let lastAskId = 0;
 
@@ -24,13 +19,23 @@ function fmtTime(ts: number | undefined, uiLang: "en" | "zh") {
 }
 
 // user message bubble — long content (e.g. a pasted equation) is collapsible
-function UserMsg({ content }: { content: string }) {
+function UserMsg({ content, attachments }: { content: string; attachments: ChatAttachment[] }) {
   const uiLang = useStore((s) => s.uiLang);
   const [open, setOpen] = useState(false);
   const long = content.length > 260;
   const shown = open || !long ? content : content.slice(0, 240) + " …";
   return (
     <div className="msg-text">
+      {attachments.length > 0 && (
+        <div className="msg-images">
+          {attachments.map((attachment) => (
+            <figure key={attachment.id}>
+              <img src={attachment.image_data_url} alt={`PDF page ${attachment.page + 1} region`} />
+              <figcaption>PDF · p{attachment.page + 1}</figcaption>
+            </figure>
+          ))}
+        </div>
+      )}
       {shown}
       {long && (
         <button className="msg-more" onClick={() => setOpen((o) => !o)}>
@@ -53,22 +58,36 @@ export function ChatPanel() {
       sessionsTitle: "Chat sessions for this paper",
       newTitle: "Start a new conversation",
       newChat: "＋ New chat",
+      editTitle: "Edit conversation title",
+      saveTitle: "Save title",
+      cancelTitle: "Cancel editing",
+      titlePlaceholder: "Conversation title",
       delTitle: "Delete this session",
       delConfirm: "Delete this session and all its messages?",
       empty:
         'Ask about this paper — methods, results, limitations, or select text in the PDF / any panel and hit "Add to chat".',
       thinking: "▍ thinking…",
       session: (n: number, t: string) => `Session ${n} · ${t}`,
+      imagePrompt: "Please analyze this selected PDF region.",
+      region: (page: number) => `PDF region · p${page}`,
+      removeAttachment: "Remove attachment",
     },
     zh: {
       sessionsTitle: "本论文的会话",
       newTitle: "新建会话",
       newChat: "＋ 新会话",
+      editTitle: "编辑会话标题",
+      saveTitle: "保存标题",
+      cancelTitle: "取消编辑",
+      titlePlaceholder: "会话标题",
       delTitle: "删除当前会话",
       delConfirm: "删除当前会话及其全部消息？",
       empty: "就这篇论文提问 — 方法、结果、局限，或在 PDF / 各面板里选中内容点“加入会话”。",
       thinking: "▍ 思考中…",
       session: (n: number, t: string) => `会话 ${n} · ${t}`,
+      imagePrompt: "请分析这个圈选的 PDF 区域。",
+      region: (page: number) => `PDF 圈选区域 · 第 ${page} 页`,
+      removeAttachment: "移除附件",
     },
   }[uiLang];
   const [msgs, setMsgs] = useState<Msg[]>([]);
@@ -77,14 +96,23 @@ export function ChatPanel() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [streamed, setStreamed] = useState("");
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleInput, setTitleInput] = useState("");
   const bodyRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const setSelection = useStore((s) => s.setSelection);
+  const chatAttachments = useStore((s) => s.chatAttachments);
+  const removeChatAttachment = useStore((s) => s.removeChatAttachment);
+  const clearChatAttachments = useStore((s) => s.clearChatAttachments);
 
   async function loadMessages(cid: string) {
     try {
       const { messages } = await api.getChatMessages(cid);
-      setMsgs(messages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })));
+      setMsgs(messages.map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+        attachments: m.attachments || [],
+      })));
     } catch {
       setMsgs([]);
     }
@@ -105,13 +133,14 @@ export function ChatPanel() {
     setMsgs([]);
     setChats([]);
     setChatId(null);
+    setEditingTitle(false);
     if (!current?.id) return;
     (async () => {
       try {
         let list = (await api.listChats(current.id)).chats as Chat[];
         if (!list.length) {
           const c = await api.createChat(current.id);
-          list = [{ id: c.id, title: "Chat", created_at: Date.now() / 1000 }];
+          list = [c];
         }
         if (cancelled) return;
         setChats(list);
@@ -136,6 +165,7 @@ export function ChatPanel() {
       const c = await api.createChat(current.id);
       setChatId(c.id);
       setMsgs([]);
+      setEditingTitle(false);
       await refreshChats();
     } catch {
       /* ignore */
@@ -144,7 +174,25 @@ export function ChatPanel() {
   async function switchChat(cid: string) {
     if (cid === chatId || busy) return;
     setChatId(cid);
+    setEditingTitle(false);
     await loadMessages(cid);
+  }
+  function startEditingTitle() {
+    const chat = chats.find((c) => c.id === chatId);
+    if (!chat || busy) return;
+    setTitleInput(chat.title === "Chat" ? "" : chat.title);
+    setEditingTitle(true);
+  }
+  async function saveTitle() {
+    const title = titleInput.trim();
+    if (!chatId || !title || busy) return;
+    try {
+      const updated = await api.updateChatTitle(chatId, title);
+      setChats((items) => items.map((c) => (c.id === chatId ? { ...c, title: updated.title } : c)));
+      setEditingTitle(false);
+    } catch {
+      /* keep the editor open so the user can retry */
+    }
   }
   async function deleteCurrentChat() {
     if (!current?.id || !chatId || busy) return;
@@ -158,7 +206,7 @@ export function ChatPanel() {
         await loadMessages(list[0].id);
       } else {
         const c = await api.createChat(current.id);
-        setChats([{ id: c.id, title: "Chat", created_at: Date.now() / 1000 }]);
+        setChats([c]);
         setChatId(c.id);
         setMsgs([]);
       }
@@ -167,10 +215,10 @@ export function ChatPanel() {
     }
   }
 
-  async function send(text: string, selText?: string) {
-    if (!text.trim() || busy) return;
-    const next = [...msgs, { role: "user" as const, content: text }];
-    const firstMsg = msgs.length === 0;
+  async function send(text: string, selText?: string, attachments = chatAttachments) {
+    if ((!text.trim() && attachments.length === 0) || busy) return;
+    const content = text.trim() || T.imagePrompt;
+    const next = [...msgs, { role: "user" as const, content, attachments }];
     setMsgs(next);
     setInput("");
     setBusy(true);
@@ -185,6 +233,7 @@ export function ChatPanel() {
       }
     }
     let acc = "";
+    let failed = false;
     await streamPost(
       "/api/chat",
       {
@@ -200,16 +249,18 @@ export function ChatPanel() {
           setStreamed(acc);
         },
         onError: (e) => {
+          failed = true;
           acc += `\n\n_error: ${e}_`;
           setStreamed(acc);
         },
         onDone: () => {},
       },
     );
-    setMsgs((m) => [...m, { role: "assistant", content: acc }]);
+    setMsgs((m) => [...m, { role: "assistant", content: acc, attachments: [] }]);
     setStreamed("");
     setBusy(false);
-    if (firstMsg) refreshChats(); // keep the session list fresh
+    if (!failed) clearChatAttachments();
+    await refreshChats(); // picks up an auto-generated or externally edited title
   }
 
   // "Ask" from a selection popover (PDF or a side panel). Fire once per selection.
@@ -221,7 +272,7 @@ export function ChatPanel() {
       const sel = action.selection.text;
       const zh = outputLanguage.startsWith("中文");
       const prefix = zh ? "解释并讨论我选中的这段内容：" : "Explain and discuss this selected content:";
-      send(`${prefix}\n\n${sel}`).finally(() => {
+      send(`${prefix}\n\n${sel}`, undefined, []).finally(() => {
         setSelection(null); // clear the attached selection so you can keep typing freely
         inputRef.current?.focus();
       });
@@ -232,32 +283,62 @@ export function ChatPanel() {
   return (
     <div className="panel-body chat">
       <div className="chat-head">
-        <select
-          className="chat-session"
-          value={chatId || ""}
-          onChange={(e) => switchChat(e.target.value)}
-          disabled={busy}
-          title={T.sessionsTitle}
-        >
-          {chats.map((c, i) => (
-            <option key={c.id} value={c.id}>
-              {T.session(chats.length - i, fmtTime(c.created_at, uiLang))}
-            </option>
-          ))}
-        </select>
-        <button className="chat-new" onClick={newChat} disabled={busy} title={T.newTitle}>
-          {T.newChat}
-        </button>
-        <button className="chat-del" onClick={deleteCurrentChat} disabled={busy || !chatId} title={T.delTitle}>
-          🗑
-        </button>
+        {editingTitle ? (
+          <>
+            <input
+              className="chat-title-input"
+              value={titleInput}
+              maxLength={120}
+              autoFocus
+              placeholder={T.titlePlaceholder}
+              onChange={(e) => setTitleInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") saveTitle();
+                if (e.key === "Escape") setEditingTitle(false);
+              }}
+            />
+            <button className="chat-head-icon save" onClick={saveTitle} disabled={!titleInput.trim()} title={T.saveTitle}>
+              ✓
+            </button>
+            <button className="chat-head-icon" onClick={() => setEditingTitle(false)} title={T.cancelTitle}>
+              ×
+            </button>
+          </>
+        ) : (
+          <>
+            <select
+              className="chat-session"
+              value={chatId || ""}
+              onChange={(e) => switchChat(e.target.value)}
+              disabled={busy}
+              title={T.sessionsTitle}
+            >
+              {chats.map((c, i) => (
+                <option key={c.id} value={c.id}>
+                  {c.title && c.title !== "Chat"
+                    ? `${c.title} · ${fmtTime(c.created_at, uiLang)}`
+                    : T.session(chats.length - i, fmtTime(c.created_at, uiLang))}
+                </option>
+              ))}
+            </select>
+            <button className="chat-head-icon" onClick={startEditingTitle} disabled={busy || !chatId} title={T.editTitle}>
+              ✎
+            </button>
+            <button className="chat-new" onClick={newChat} disabled={busy} title={T.newTitle}>
+              {T.newChat}
+            </button>
+            <button className="chat-del" onClick={deleteCurrentChat} disabled={busy || !chatId} title={T.delTitle}>
+              🗑
+            </button>
+          </>
+        )}
       </div>
       <div className="chat-body" ref={bodyRef}>
         {msgs.length === 0 && !streamed && <div className="muted">{T.empty}</div>}
         {msgs.map((m, i) => (
           <div key={i} className={"msg " + m.role}>
             <div className="msg-role">{m.role === "user" ? "you" : "gloss"}</div>
-            {m.role === "assistant" ? <Markdown text={m.content} /> : <UserMsg content={m.content} />}
+            {m.role === "assistant" ? <Markdown text={m.content} /> : <UserMsg content={m.content} attachments={m.attachments} />}
           </div>
         ))}
         {streamed && (
@@ -269,6 +350,17 @@ export function ChatPanel() {
         {busy && !streamed && <div className="muted blink">{T.thinking}</div>}
       </div>
       <div className="chat-input">
+        {chatAttachments.length > 0 && (
+          <div className="chat-attachments">
+            {chatAttachments.map((attachment) => (
+              <div className="chat-attachment" key={attachment.id}>
+                <img src={attachment.image_data_url} alt={T.region(attachment.page + 1)} />
+                <span>{T.region(attachment.page + 1)}</span>
+                <button title={T.removeAttachment} onClick={() => removeChatAttachment(attachment.id)}>×</button>
+              </div>
+            ))}
+          </div>
+        )}
         {selection?.text && (
           <div className="attached" title={selection.text}>
             ⧉ selection attached ({selection.text.length} chars)
@@ -282,11 +374,11 @@ export function ChatPanel() {
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              send(input, selection?.text);
+              send(input, selection?.text, chatAttachments);
             }
           }}
         />
-        <button disabled={busy} onClick={() => send(input, selection?.text)}>
+        <button disabled={busy} onClick={() => send(input, selection?.text, chatAttachments)}>
           {busy ? "…" : "Send"}
         </button>
       </div>

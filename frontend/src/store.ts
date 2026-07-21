@@ -1,10 +1,13 @@
 import { create } from "zustand";
 import {
   api,
+  ChatAttachment,
+  Drawing,
   Highlight,
   ImportJob,
   PagesResponse,
   Paper,
+  PluginSnapshot,
   ProviderConnectionStatus,
   ProviderTestResult,
 } from "./api/client";
@@ -28,6 +31,9 @@ interface State {
   current: Paper | null;
   pages: PagesResponse | null;
   highlights: Highlight[];
+  drawings: Drawing[];
+  chatAttachments: ChatAttachment[];
+  pluginSnapshot: PluginSnapshot;
   selection: Selection | null;
   activeTab: string;
   targetLanguage: string;
@@ -55,6 +61,8 @@ interface State {
   clearFlash: () => void;
   setSelection: (s: Selection | null) => void;
   refreshHighlights: () => Promise<void>;
+  refreshDrawings: () => Promise<void>;
+  loadPlugins: () => Promise<void>;
   loadSettings: () => Promise<void>;
   refreshProviderStatuses: () => Promise<void>;
   checkProvider: (provider: string) => Promise<ProviderTestResult>;
@@ -63,7 +71,10 @@ interface State {
   notify: (m: string | null) => void;
   runSelectionAction: (kind: "explain" | "translate" | "ask") => void;
   askAboutText: (text: string) => void;
-  addUserHighlight: (color?: string) => Promise<void>;
+  addChatAttachment: (attachment: ChatAttachment) => void;
+  removeChatAttachment: (id: string) => void;
+  clearChatAttachments: () => void;
+  addUserHighlight: (color?: string, note?: string) => Promise<void>;
 }
 
 export const useStore = create<State>((set, get) => ({
@@ -73,6 +84,17 @@ export const useStore = create<State>((set, get) => ({
   current: null,
   pages: null,
   highlights: [],
+  drawings: [],
+  chatAttachments: [],
+  pluginSnapshot: {
+    api_version: 1,
+    permissions: [],
+    contribution_points: [],
+    core: [],
+    marketplace: [],
+    installed: [],
+    coming_soon: [],
+  },
   selection: null,
   activeTab: "summary",
   targetLanguage: "中文 (Simplified Chinese)",
@@ -188,11 +210,14 @@ export const useStore = create<State>((set, get) => ({
     const [paper, pages] = await Promise.all([api.getPaper(id), api.getPages(id)]);
     set({
       current: paper, pages, view: "reader", activeTab: "summary", selection: null,
+      highlights: [], drawings: [], chatAttachments: [],
       scholarView: { key: null, query: "" },
     });
-    get().refreshHighlights();
+    await Promise.all([get().refreshHighlights(), get().refreshDrawings()]);
   },
-  closePaper: () => set({ view: "library", current: null, pages: null, highlights: [], selection: null }),
+  closePaper: () => set({
+    view: "library", current: null, pages: null, highlights: [], drawings: [], chatAttachments: [], selection: null,
+  }),
   setTab: (t) => set({ activeTab: t }),
   setUiLang: (l) => {
     localStorage.setItem("gloss.uiLang", l);
@@ -207,6 +232,20 @@ export const useStore = create<State>((set, get) => ({
     if (!cur) return;
     const { highlights } = await api.listHighlights(cur.id);
     set({ highlights });
+  },
+  refreshDrawings: async () => {
+    const cur = get().current;
+    if (!cur) return;
+    const { drawings } = await api.listDrawings(cur.id);
+    set({ drawings });
+  },
+  loadPlugins: async () => {
+    try {
+      const pluginSnapshot = await api.listPlugins();
+      set({ pluginSnapshot });
+    } catch {
+      /* backend may still be starting */
+    }
   },
   loadSettings: async () => {
     try {
@@ -304,7 +343,15 @@ export const useStore = create<State>((set, get) => ({
     // jump to chat and let ChatPanel's "ask" effect answer about the selection
     set({ selection: sel, activeTab: "chat", selectionAction: { kind: "ask", selection: sel, id: Date.now() } });
   },
-  addUserHighlight: async (color = "#ffd54f") => {
+  addChatAttachment: (attachment) => set((state) => ({
+    chatAttachments: [...state.chatAttachments.filter((item) => item.id !== attachment.id), attachment].slice(-4),
+    activeTab: "chat",
+  })),
+  removeChatAttachment: (id) => set((state) => ({
+    chatAttachments: state.chatAttachments.filter((item) => item.id !== id),
+  })),
+  clearChatAttachments: () => set({ chatAttachments: [] }),
+  addUserHighlight: async (color = "#ffd54f", note = "") => {
     const cur = get().current;
     const sel = get().selection;
     if (!cur || !sel) return;
@@ -313,6 +360,7 @@ export const useStore = create<State>((set, get) => ({
       rects: sel.rects,
       text: sel.text,
       color,
+      note,
       kind: "user",
     });
     await get().refreshHighlights();

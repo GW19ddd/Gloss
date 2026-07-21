@@ -35,10 +35,23 @@ class OpenAIProvider(Provider):
         if system:
             out.append({"role": "system", "content": system})
         for m in messages:
+            text = m.get("content") or ""
+            attachments = m.get("attachments") or []
+            content: str | list[dict] = text
+            if attachments and m.get("role") not in ("system", "developer", "assistant"):
+                content = [{"type": "text", "text": text}]
+                content.extend(
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": attachment["image_data_url"]},
+                    }
+                    for attachment in attachments
+                    if attachment.get("image_data_url")
+                )
             if m.get("role") in ("system", "developer"):
-                out.append({"role": "system", "content": m.get("content") or ""})
+                out.append({"role": "system", "content": text})
             else:
-                out.append({"role": m.get("role", "user"), "content": m.get("content") or ""})
+                out.append({"role": m.get("role", "user"), "content": content})
         return out
 
     async def complete(self, system, messages, model=None):

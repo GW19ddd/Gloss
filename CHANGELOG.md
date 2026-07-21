@@ -4,6 +4,37 @@
 
 ---
 
+## v1.0.1 — 2026-07-21
+
+这一版把 Gloss 从阅读器进一步扩展为可持续工作的论文研究空间，并完善了桌面端和跨平台发布体验。
+*Gloss now keeps richer research context across sessions, adds extensible reading tools, and ships a more polished desktop experience.*
+
+### 💬 持久化 AI 会话 / Persistent AI chat
+- 每个 Gloss chat 对应独立、持久化的 Codex session；后续提问使用 `codex exec resume`，切换论文或页面不会丢失上下文。
+- Codex session 丢失时可从 SQLite 历史自动重建；不同 provider 之间切换时不会错误复用上下文。
+- 首轮回答后自动生成简短会话标题，并支持随时内联编辑；标题、消息与 session 映射统一持久化。
+- 同一会话的请求串行执行，普通 Summary、Translate 等一次性任务继续保持临时会话。
+
+### 🧩 插件与可扩展面板 / Plugins & extensibility
+- 新增插件市场和扩展面板，插件可以像内置 Summary、Notes、Mind Map、Scholar、Skills 一样加入侧栏。
+- 已安装插件支持卸载，并清理对应本地缓存；预留更多即将推出的扩展入口。
+- DeepPaperNote 与个人 Notes 保持独立，避免生成式研读笔记和用户手写笔记混在一起。
+
+### ✍️ PDF 批注与对话附件 / Annotation & chat attachments
+- 新增个人笔记、彩色荧光标注与自由绘图，支持铅笔、写字笔、荧光笔和橡皮擦；内容持久化到本地。
+- 阅读器“眼睛”菜单可分别控制笔记、高亮和绘图等覆盖层。
+- 新增自由套索截图：在 PDF 上圈选任意区域，预览后直接加入 Chat；Codex、Claude、OpenAI 与 Anthropic provider 均可接收对应图片或提取文本。
+
+### 🖥️ 桌面端、导入与界面 / Desktop, imports & UI
+- Windows EXE 使用 Gloss 图标、单实例运行、自动选择空闲端口，并避免 AI 请求时弹出命令行窗口。
+- 关闭应用时可提示正在导入或生成的任务将中断，并支持“下次不再提示”。
+- 论文导入改为持久化异步队列，支持进度展示和取消；下载上限调整为 300 秒并改进 arXiv/代理兼容性。
+- Provider 选择器增加连接状态灯和对应品牌标识，并修复本地 Codex 测试连接误超时。
+- 优化 Mind Map 连线路由，减少穿过节点和不必要的弯折。
+- npm/Bun、Linux、Windows 和 SSH 使用说明及 CI/Release 流程同步完善。
+
+---
+
 ## v0.1.0 — 2026-07-17
 
 首个完整版本：从对 [Moonlight](https://www.themoonlight.io/) 的本地重构起步，逐步长成一个功能完整的本地 AI 论文阅读器。

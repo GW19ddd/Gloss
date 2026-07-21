@@ -7,9 +7,12 @@ endpoint. This is the default provider and needs only the `claude` binary on PAT
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import os
+import shutil
 import tempfile
+from pathlib import Path
 from typing import AsyncIterator
 
 from ..config import ensure_claude_sandbox, load_config
@@ -47,6 +50,40 @@ def _timeout() -> float:
 
 def _effort() -> str:
     return (load_config()["providers"]["local_claude"].get("effort") or "").strip()
+
+
+def _materialize_message_images(messages: list[Message]) -> tuple[str | None, list[str]]:
+    """Create a dedicated read-only attachment directory for Claude's Read tool."""
+    data_urls = [
+        attachment.get("image_data_url") or ""
+        for message in messages
+        for attachment in (message.get("attachments") or [])
+    ]
+    prefix = "data:image/png;base64,"
+    data_urls = [value for value in data_urls if value.startswith(prefix)]
+    if not data_urls:
+        return None, []
+    directory = tempfile.mkdtemp(prefix="gloss-chat-images-")
+    paths = []
+    try:
+        for index, data_url in enumerate(data_urls, start=1):
+            path = Path(directory) / f"pdf-region-{index}.png"
+            path.write_bytes(base64.b64decode(data_url[len(prefix):], validate=True))
+            paths.append(str(path))
+        return directory, paths
+    except Exception:
+        shutil.rmtree(directory, ignore_errors=True)
+        raise
+
+
+def _image_prompt_suffix(paths: list[str]) -> str:
+    if not paths:
+        return ""
+    listed = "\n".join(f"- {path}" for path in paths)
+    return (
+        "\n\n[Attached PDF-region screenshots]\n"
+        f"{listed}\nUse the Read tool to inspect these images before answering."
+    )
 
 
 class LocalClaudeProvider(Provider):
@@ -88,15 +125,18 @@ class LocalClaudeProvider(Provider):
     async def complete(
         self, system: str, messages: list[Message], model: str | None = None
     ) -> tuple[str, dict]:
-        prompt = render_transcript(messages)
+        image_dir, image_paths = _materialize_message_images(messages)
+        prompt = render_transcript(messages) + _image_prompt_suffix(image_paths)
         model = _pick_model(model)
         cmd = resolve_cli_command("claude") + [
             "-p",
             "--output-format", "json",
             "--no-session-persistence",
-            "--tools", "",
+            "--tools", "Read" if image_paths else "",
             "--model", model,
         ]
+        if image_dir:
+            cmd += ["--add-dir", image_dir, "--permission-mode", "dontAsk"]
         if _effort():
             cmd += ["--effort", _effort()]
         tmp_path = None
@@ -151,12 +191,15 @@ class LocalClaudeProvider(Provider):
                     os.unlink(tmp_path)
                 except OSError:
                     pass
+            if image_dir:
+                shutil.rmtree(image_dir, ignore_errors=True)
 
     async def stream(
         self, system: str, messages: list[Message], model: str | None = None
     ) -> AsyncIterator[str]:
         """True token streaming via `--output-format stream-json`, with fallback."""
-        prompt = render_transcript(messages)
+        image_dir, image_paths = _materialize_message_images(messages)
+        prompt = render_transcript(messages) + _image_prompt_suffix(image_paths)
         model = _pick_model(model)
         cmd = resolve_cli_command("claude") + [
             "-p",
@@ -164,9 +207,11 @@ class LocalClaudeProvider(Provider):
             "--include-partial-messages",
             "--verbose",
             "--no-session-persistence",
-            "--tools", "",
+            "--tools", "Read" if image_paths else "",
             "--model", model,
         ]
+        if image_dir:
+            cmd += ["--add-dir", image_dir, "--permission-mode", "dontAsk"]
         if _effort():
             cmd += ["--effort", _effort()]
         tmp_path = None
@@ -223,6 +268,8 @@ class LocalClaudeProvider(Provider):
                     os.unlink(tmp_path)
                 except OSError:
                     pass
+            if image_dir:
+                shutil.rmtree(image_dir, ignore_errors=True)
 
         if not streamed_any:
             # Fallback: blocking completion, chunked out.

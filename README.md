@@ -50,16 +50,18 @@ Everything runs on your own machine. Use Gloss as a native Windows app or open t
 | 🧠 **Summary** | One-click TL;DR + problem / method / results / contributions / limitations |
 | 📝 **Notes** | Structured study notes, **copy** or **download `.md`** |
 | 🗺️ **Mind Map** | Interactive React Flow map: zoom, expand/collapse, click a node for its summary and connections |
-| 💬 **Chat** | Ask like a colleague — **BM25 retrieval (RAG)** over the whole paper, **streaming**, **multiple saved sessions per paper**, deletable, new-session anytime |
+| 💬 **Chat** | Ask like a colleague — **BM25 retrieval (RAG)** over the whole paper, **persistent Codex sessions**, editable auto-titles, streaming, and multiple saved chats per paper |
 | 💡 **Explain** | Select an equation / term / table and get a one-shot explanation; math rendered with **KaTeX** |
 | 🌐 **Translate** | **Sentence-level**, **persistently cached**, **reused across page ranges**; translation-only by default with a show-original toggle; **click a sentence to flash-locate it in the PDF**; for arXiv, **translate the exact LaTeX source** so nothing is missed |
 | 📐 **arXiv LaTeX** | A **TeX tab** to read the paper's LaTeX source (exact, no extraction loss) — and translate from it |
 | 🖍️ **Auto-highlight** | The AI picks key sentences by category and **anchors colored highlights onto the PDF** |
-| ✍️ **Highlights** | Your own multi-color highlights + notes, saved on the page |
+| ✍️ **Annotations** | Personal notes, multi-color highlights, pencil, pen, highlighter and eraser, all saved locally on the page |
+| 📎 **Lasso to chat** | Freehand-circle any PDF region, preview the screenshot, then attach it directly to Chat |
 | 🔗 **References** | Parses the bibliography, enriches via **Crossref / arXiv**, **each entry is clickable** |
 | 🔭 **Scholar** | Find related papers via **Semantic Scholar / arXiv** and **import** them in one click |
 | 📚 **Library** | Import by **arXiv id / DOI / URL / PDF upload**, managed in one place |
 | 🧩 **Skills** | Discover and run **Claude / Codex skills** against the current paper |
+| 🔌 **Plugins** | Install or uninstall extensible reader panels from the built-in marketplace |
 | ➕ **Add to chat** | Select content in the PDF or any panel → send it into Chat and get an answer about it |
 | 🎨 **Themes & reading modes** | **7 color themes**, plus PDF reading modes — **Normal / Sepia (护眼) / Night (夜间)** |
 | 🗣️ **Languages** | **Interface language** (English / 中文, default English), plus the AI's **answer language** and **translation target language** |

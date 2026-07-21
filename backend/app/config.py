@@ -27,10 +27,11 @@ CACHE_DIR = Path(
 ).expanduser().resolve()
 PAPERS_DIR = DATA_DIR / "papers"
 UPLOADS_DIR = DATA_DIR / "uploads"
+PLUGINS_DIR = DATA_DIR / "plugins"
 DB_PATH = DATA_DIR / "moonlight.db"
 CONFIG_PATH = DATA_DIR / "config.json"
 
-for _d in (DATA_DIR, CACHE_DIR, PAPERS_DIR, UPLOADS_DIR):
+for _d in (DATA_DIR, CACHE_DIR, PAPERS_DIR, UPLOADS_DIR, PLUGINS_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
 # Directory served as the built frontend (populated by `vite build`). Frozen

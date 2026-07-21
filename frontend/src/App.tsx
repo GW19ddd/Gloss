@@ -15,6 +15,7 @@ export default function App() {
   const closePaper = useStore((s) => s.closePaper);
   const loadPapers = useStore((s) => s.loadPapers);
   const loadSettings = useStore((s) => s.loadSettings);
+  const loadPlugins = useStore((s) => s.loadPlugins);
   const checkProvider = useStore((s) => s.checkProvider);
   const refreshProviderStatuses = useStore((s) => s.refreshProviderStatuses);
   const loadImportJobs = useStore((s) => s.loadImportJobs);
@@ -41,6 +42,7 @@ export default function App() {
     document.documentElement.dataset.theme = localStorage.getItem("gloss.theme") || "midnight";
     document.documentElement.dataset.pdf = localStorage.getItem("gloss.pdfMode") || "light";
     loadPapers();
+    loadPlugins();
     loadSettings().then(() => {
       const activeProvider = useStore.getState().provider;
       void checkProvider(activeProvider);

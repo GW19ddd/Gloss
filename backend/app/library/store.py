@@ -43,10 +43,28 @@ CREATE TABLE IF NOT EXISTS highlights (
     kind TEXT,
     created_at REAL
 );
+CREATE TABLE IF NOT EXISTS drawings (
+    id TEXT PRIMARY KEY,
+    paper_id TEXT,
+    page INTEGER,
+    points TEXT,
+    color TEXT,
+    width REAL,
+    tool TEXT NOT NULL DEFAULT 'pen',
+    note TEXT,
+    created_at REAL
+);
+CREATE TABLE IF NOT EXISTS personal_notes (
+    paper_id TEXT PRIMARY KEY,
+    content TEXT,
+    updated_at REAL
+);
 CREATE TABLE IF NOT EXISTS chats (
     id TEXT PRIMARY KEY,
     paper_id TEXT,
     title TEXT,
+    provider TEXT,
+    provider_session_id TEXT,
     created_at REAL
 );
 CREATE TABLE IF NOT EXISTS messages (
@@ -54,6 +72,7 @@ CREATE TABLE IF NOT EXISTS messages (
     chat_id TEXT,
     role TEXT,
     content TEXT,
+    attachments TEXT NOT NULL DEFAULT '[]',
     created_at REAL
 );
 CREATE TABLE IF NOT EXISTS refs (
@@ -102,6 +121,27 @@ def _conn() -> Iterator[sqlite3.Connection]:
 def init_db() -> None:
     with _conn() as con:
         con.executescript(_SCHEMA)
+        drawing_columns = {
+            row["name"] for row in con.execute("PRAGMA table_info(drawings)").fetchall()
+        }
+        if "tool" not in drawing_columns:
+            con.execute(
+                "ALTER TABLE drawings ADD COLUMN tool TEXT NOT NULL DEFAULT 'pen'"
+            )
+        chat_columns = {
+            row["name"] for row in con.execute("PRAGMA table_info(chats)").fetchall()
+        }
+        if "provider" not in chat_columns:
+            con.execute("ALTER TABLE chats ADD COLUMN provider TEXT")
+        if "provider_session_id" not in chat_columns:
+            con.execute("ALTER TABLE chats ADD COLUMN provider_session_id TEXT")
+        message_columns = {
+            row["name"] for row in con.execute("PRAGMA table_info(messages)").fetchall()
+        }
+        if "attachments" not in message_columns:
+            con.execute(
+                "ALTER TABLE messages ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -195,7 +235,10 @@ def update_paper(paper_id: str, fields: dict[str, Any]) -> None:
 
 def delete_paper(paper_id: str) -> None:
     with _conn() as con:
-        for t in ("papers", "highlights", "chats", "messages", "refs", "cache"):
+        for t in (
+            "papers", "highlights", "drawings", "personal_notes",
+            "chats", "messages", "refs", "cache",
+        ):
             col = "id" if t == "papers" else "paper_id"
             if t == "messages":
                 con.execute(
@@ -288,24 +331,140 @@ def clear_auto_highlights(paper_id: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Freehand drawings + personal paper notes
+# ---------------------------------------------------------------------------
+def add_drawing(paper_id: str, drawing: dict) -> dict:
+    did = drawing.get("id") or _uid()
+    row = (
+        did,
+        paper_id,
+        int(drawing.get("page", 0)),
+        json.dumps(drawing.get("points", [])),
+        drawing.get("color", "#ef6b6b"),
+        float(drawing.get("width", 3)),
+        drawing.get("tool", "pen"),
+        drawing.get("note", ""),
+        _now(),
+    )
+    with _conn() as con:
+        con.execute(
+            """INSERT INTO drawings
+               (id,paper_id,page,points,color,width,tool,note,created_at)
+               VALUES (?,?,?,?,?,?,?,?,?)""",
+            row,
+        )
+    return get_drawing(did)
+
+
+def get_drawing(did: str) -> dict | None:
+    with _conn() as con:
+        row = con.execute("SELECT * FROM drawings WHERE id=?", (did,)).fetchone()
+    if not row:
+        return None
+    drawing = dict(row)
+    drawing["points"] = json.loads(drawing.get("points") or "[]")
+    drawing["tool"] = drawing.get("tool") or "pen"
+    return drawing
+
+
+def list_drawings(paper_id: str) -> list[dict]:
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT * FROM drawings WHERE paper_id=? ORDER BY page, created_at",
+            (paper_id,),
+        ).fetchall()
+    drawings = []
+    for row in rows:
+        drawing = dict(row)
+        drawing["points"] = json.loads(drawing.get("points") or "[]")
+        drawing["tool"] = drawing.get("tool") or "pen"
+        drawings.append(drawing)
+    return drawings
+
+
+def delete_drawing(did: str) -> None:
+    with _conn() as con:
+        con.execute("DELETE FROM drawings WHERE id=?", (did,))
+
+
+def get_personal_note(paper_id: str) -> dict:
+    with _conn() as con:
+        row = con.execute(
+            "SELECT paper_id,content,updated_at FROM personal_notes WHERE paper_id=?",
+            (paper_id,),
+        ).fetchone()
+    if row:
+        return dict(row)
+    return {"paper_id": paper_id, "content": "", "updated_at": None}
+
+
+def save_personal_note(paper_id: str, content: str) -> dict:
+    updated_at = _now()
+    with _conn() as con:
+        con.execute(
+            """INSERT INTO personal_notes (paper_id,content,updated_at)
+               VALUES (?,?,?)
+               ON CONFLICT(paper_id) DO UPDATE SET
+                 content=excluded.content,
+                 updated_at=excluded.updated_at""",
+            (paper_id, content, updated_at),
+        )
+    return get_personal_note(paper_id)
+
+
+# ---------------------------------------------------------------------------
 # Chats / messages
 # ---------------------------------------------------------------------------
 def create_chat(paper_id: str, title: str = "Chat") -> dict:
     cid = _uid()
+    created_at = _now()
     with _conn() as con:
         con.execute(
             "INSERT INTO chats (id,paper_id,title,created_at) VALUES (?,?,?,?)",
-            (cid, paper_id, title, _now()),
+            (cid, paper_id, title, created_at),
         )
-    return {"id": cid, "paper_id": paper_id, "title": title}
+    return {
+        "id": cid,
+        "paper_id": paper_id,
+        "title": title,
+        "created_at": created_at,
+    }
 
 
 def list_chats(paper_id: str) -> list[dict]:
     with _conn() as con:
         rows = con.execute(
-            "SELECT * FROM chats WHERE paper_id=? ORDER BY created_at DESC", (paper_id,)
+            """SELECT id,paper_id,title,created_at
+               FROM chats WHERE paper_id=? ORDER BY created_at DESC""",
+            (paper_id,),
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def get_chat(chat_id: str) -> dict | None:
+    with _conn() as con:
+        row = con.execute("SELECT * FROM chats WHERE id=?", (chat_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def update_chat_title(chat_id: str, title: str) -> dict | None:
+    normalized = " ".join(title.split())[:120]
+    if not normalized:
+        return None
+    with _conn() as con:
+        result = con.execute(
+            "UPDATE chats SET title=? WHERE id=?", (normalized, chat_id)
+        )
+        updated = result.rowcount
+    return get_chat(chat_id) if updated else None
+
+
+def chat_has_messages(chat_id: str) -> bool:
+    with _conn() as con:
+        row = con.execute(
+            "SELECT 1 FROM messages WHERE chat_id=? LIMIT 1", (chat_id,)
+        ).fetchone()
+    return row is not None
 
 
 def delete_chat(chat_id: str) -> None:
@@ -314,14 +473,68 @@ def delete_chat(chat_id: str) -> None:
         con.execute("DELETE FROM chats WHERE id=?", (chat_id,))
 
 
-def add_message(chat_id: str, role: str, content: str) -> dict:
+def add_message(
+    chat_id: str,
+    role: str,
+    content: str,
+    attachments: list[dict] | None = None,
+) -> dict:
     mid = _uid()
+    serialized_attachments = json.dumps(attachments or [], ensure_ascii=False)
     with _conn() as con:
         con.execute(
-            "INSERT INTO messages (id,chat_id,role,content,created_at) VALUES (?,?,?,?,?)",
-            (mid, chat_id, role, content, _now()),
+            """INSERT INTO messages
+               (id,chat_id,role,content,attachments,created_at)
+               VALUES (?,?,?,?,?,?)""",
+            (mid, chat_id, role, content, serialized_attachments, _now()),
         )
-    return {"id": mid, "chat_id": chat_id, "role": role, "content": content}
+    return {
+        "id": mid,
+        "chat_id": chat_id,
+        "role": role,
+        "content": content,
+        "attachments": attachments or [],
+    }
+
+
+def commit_chat_turn(
+    chat_id: str,
+    user_content: str,
+    assistant_content: str,
+    *,
+    provider: str,
+    provider_session_id: str | None,
+    title: str | None = None,
+    user_attachments: list[dict] | None = None,
+) -> None:
+    """Atomically persist a completed turn and its provider-session mapping."""
+    now = _now()
+    with _conn() as con:
+        con.executemany(
+            """INSERT INTO messages
+               (id,chat_id,role,content,attachments,created_at)
+               VALUES (?,?,?,?,?,?)""",
+            (
+                (
+                    _uid(), chat_id, "user", user_content,
+                    json.dumps(user_attachments or [], ensure_ascii=False), now,
+                ),
+                (_uid(), chat_id, "assistant", assistant_content, "[]", now + 0.000001),
+            ),
+        )
+        if title:
+            con.execute(
+                """UPDATE chats
+                   SET provider=?, provider_session_id=?,
+                       title=CASE WHEN title='Chat' THEN ? ELSE title END
+                   WHERE id=?""",
+                (provider, provider_session_id, title, chat_id),
+            )
+        else:
+            con.execute(
+                "UPDATE chats SET provider=?, provider_session_id=? WHERE id=?",
+                (provider, provider_session_id, chat_id),
+            )
 
 
 def list_messages(chat_id: str) -> list[dict]:
@@ -329,7 +542,15 @@ def list_messages(chat_id: str) -> list[dict]:
         rows = con.execute(
             "SELECT * FROM messages WHERE chat_id=? ORDER BY created_at", (chat_id,)
         ).fetchall()
-    return [dict(r) for r in rows]
+    messages = []
+    for row in rows:
+        message = dict(row)
+        try:
+            message["attachments"] = json.loads(message.get("attachments") or "[]")
+        except json.JSONDecodeError:
+            message["attachments"] = []
+        messages.append(message)
+    return messages
 
 
 # ---------------------------------------------------------------------------
@@ -401,3 +622,13 @@ def cache_set(paper_id: str, key: str, value: Any) -> None:
             "INSERT OR REPLACE INTO cache (paper_id,key,value,updated_at) VALUES (?,?,?,?)",
             (paper_id, key, json.dumps(value, ensure_ascii=False), _now()),
         )
+
+
+def cache_delete_prefix(prefix: str) -> int:
+    """Delete every cached result whose key starts with an exact prefix."""
+    with _conn() as con:
+        cursor = con.execute(
+            "DELETE FROM cache WHERE substr(key, 1, ?) = ?",
+            (len(prefix), prefix),
+        )
+    return cursor.rowcount

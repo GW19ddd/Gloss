@@ -26,12 +26,32 @@ class AnthropicProvider(Provider):
 
     def _body(self, system: str, messages: list[Message], model: str | None, stream: bool) -> dict:
         c = _cfg()
-        msgs = [
-            {"role": "assistant" if m.get("role") == "assistant" else "user",
-             "content": m.get("content") or ""}
-            for m in messages
-            if m.get("role") not in ("system", "developer")
-        ]
+        msgs = []
+        for message in messages:
+            if message.get("role") in ("system", "developer"):
+                continue
+            text = message.get("content") or ""
+            attachments = message.get("attachments") or []
+            content: str | list[dict] = text
+            if attachments and message.get("role") != "assistant":
+                content = []
+                for attachment in attachments:
+                    data_url = attachment.get("image_data_url") or ""
+                    if not data_url.startswith("data:image/png;base64,"):
+                        continue
+                    content.append({
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/png",
+                            "data": data_url.split(",", 1)[1],
+                        },
+                    })
+                content.append({"type": "text", "text": text})
+            msgs.append({
+                "role": "assistant" if message.get("role") == "assistant" else "user",
+                "content": content,
+            })
         body = {
             "model": model or c.get("model", "claude-sonnet-4-5"),
             "max_tokens": 4096,

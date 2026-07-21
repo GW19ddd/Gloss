@@ -75,9 +75,12 @@ async def test_connection(name: str | None = None) -> dict:
 
 
 def get_provider(name: str | None = None) -> Provider:
-    if not name:
-        name = load_config().get("provider", "local_claude")
+    name = resolve_provider_name(name)
     return _PROVIDERS.get(name, _PROVIDERS["local_claude"])
+
+
+def resolve_provider_name(name: str | None = None) -> str:
+    return name or load_config().get("provider", "local_claude")
 
 
 def available() -> list[str]:
@@ -126,3 +129,30 @@ async def stream(
         raise
     if not connected:
         _record_status(provider_name, True)
+
+
+async def complete_in_session(
+    system: str,
+    messages: list[dict],
+    *,
+    provider: str,
+    model: str | None = None,
+    session_id: str | None = None,
+) -> tuple[str, dict, str]:
+    """Run a provider-specific persisted session completion.
+
+    Only providers that explicitly implement ``complete_session`` may use this
+    path; regular completions continue through the stateless interface above.
+    """
+    p = get_provider(provider)
+    complete_session = getattr(p, "complete_session", None)
+    if complete_session is None:
+        raise ValueError(f"provider {provider!r} does not support sessions")
+    sys, msgs = split_system(messages, system)
+    try:
+        result = await complete_session(sys, msgs, model, session_id=session_id)
+    except Exception as error:
+        _record_status(provider, False, str(error) or type(error).__name__)
+        raise
+    _record_status(provider, True)
+    return result

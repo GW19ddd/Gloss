@@ -1,13 +1,16 @@
 """Local `codex` CLI provider (ChatGPT subscription auth — no API key).
 
-Uses `codex exec` non-interactively as a plain LLM: read-only sandbox, ephemeral
-(no session files), a clean working dir (no AGENTS.md to leak), and the final
-message captured via `--output-last-message`. Model + reasoning effort are
-configurable and passed through the standard codex flags.
+Uses `codex exec` non-interactively as a plain LLM in a clean, read-only working
+directory (no AGENTS.md to leak). One-shot features remain ephemeral, while the
+paper chat feature can opt into a persisted Codex session and resume it by ID.
+The final message is captured via `--output-last-message`; model + reasoning
+effort are configurable and passed through the standard codex flags.
 """
 from __future__ import annotations
 
 import asyncio
+import base64
+import json
 import os
 import tempfile
 from typing import AsyncIterator
@@ -23,6 +26,62 @@ from .base import Message, Provider, render_transcript
 
 def _cfg() -> dict:
     return load_config()["providers"]["local_codex"]
+
+
+class CodexSessionUnavailableError(RuntimeError):
+    """Raised when a previously recorded Codex session can no longer be resumed."""
+
+
+def _thread_id_from_jsonl(output: bytes) -> str | None:
+    for raw_line in output.splitlines():
+        try:
+            event = json.loads(raw_line)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            continue
+        if event.get("type") == "thread.started":
+            thread_id = event.get("thread_id")
+            if isinstance(thread_id, str) and thread_id:
+                return thread_id
+    return None
+
+
+def _session_is_unavailable(detail: str) -> bool:
+    text = detail.lower()
+    direct_markers = (
+        "session not found",
+        "thread not found",
+        "no saved session",
+        "no rollout found",
+        "could not find session",
+        "could not find rollout",
+        "unknown session",
+        "invalid session id",
+    )
+    return any(marker in text for marker in direct_markers)
+
+
+def _materialize_message_images(messages: list[Message]) -> list[str]:
+    """Write data-URL attachments to temporary PNGs accepted by `codex --image`."""
+    paths: list[str] = []
+    prefix = "data:image/png;base64,"
+    try:
+        for message in messages:
+            for attachment in message.get("attachments") or []:
+                data_url = attachment.get("image_data_url") or ""
+                if not data_url.startswith(prefix):
+                    continue
+                fd, path = tempfile.mkstemp(prefix="gloss-chat-image-", suffix=".png")
+                paths.append(path)
+                with os.fdopen(fd, "wb") as image_file:
+                    image_file.write(base64.b64decode(data_url[len(prefix):], validate=True))
+        return paths
+    except Exception:
+        for path in paths:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+        raise
 
 
 class LocalCodexProvider(Provider):
@@ -56,6 +115,40 @@ class LocalCodexProvider(Provider):
     async def complete(
         self, system: str, messages: list[Message], model: str | None = None
     ) -> tuple[str, dict]:
+        text, usage, _ = await self._run_completion(
+            system, messages, model, persist_session=False
+        )
+        return text, usage
+
+    async def complete_session(
+        self,
+        system: str,
+        messages: list[Message],
+        model: str | None = None,
+        *,
+        session_id: str | None = None,
+    ) -> tuple[str, dict, str]:
+        """Create or resume a persisted Codex session for a paper chat."""
+        text, usage, resolved_session_id = await self._run_completion(
+            system,
+            messages,
+            model,
+            persist_session=True,
+            session_id=session_id,
+        )
+        if not resolved_session_id:
+            raise RuntimeError("codex CLI did not report a session id")
+        return text, usage, resolved_session_id
+
+    async def _run_completion(
+        self,
+        system: str,
+        messages: list[Message],
+        model: str | None,
+        *,
+        persist_session: bool,
+        session_id: str | None = None,
+    ) -> tuple[str, dict, str | None]:
         cfg = _cfg()
         model = model or cfg.get("model", "")
         effort = cfg.get("effort", "")
@@ -68,18 +161,36 @@ class LocalCodexProvider(Provider):
 
         fd, out_path = tempfile.mkstemp(prefix="gloss-codex-", suffix=".txt")
         os.close(fd)
-        cmd = resolve_cli_command("codex") + [
-            "exec",
-            "--skip-git-repo-check",
-            "--ephemeral",
-            "-s", "read-only",
-            "-C", sandbox,
-            "-o", out_path,
-        ]
+        image_paths = _materialize_message_images(messages)
+        cmd = resolve_cli_command("codex") + ["exec"]
+        if session_id:
+            cmd += [
+                "resume",
+                "--skip-git-repo-check",
+                "--json",
+                "-o", out_path,
+            ]
+        else:
+            cmd += [
+                "--skip-git-repo-check",
+                "-s", "read-only",
+                "-C", sandbox,
+                "-o", out_path,
+            ]
+            if persist_session:
+                cmd.append("--json")
+            else:
+                cmd.append("--ephemeral")
         if model:
             cmd += ["-m", model]
         if effort:
             cmd += ["-c", f"model_reasoning_effort={effort}"]
+        for image_path in image_paths:
+            cmd += ["-i", image_path]
+        if session_id:
+            cmd += [session_id, "-"]
+        else:
+            cmd.append("-")
 
         proc = None
         try:
@@ -91,14 +202,17 @@ class LocalCodexProvider(Provider):
                 **subprocess_group_options(),
             )
             try:
-                _, err = await asyncio.wait_for(
+                out, err = await asyncio.wait_for(
                     proc.communicate(prompt.encode()), timeout=timeout
                 )
             except asyncio.TimeoutError:
                 await terminate_process_tree(proc)
                 raise RuntimeError(f"codex CLI timed out after {timeout}s")
             if proc.returncode != 0:
-                raise RuntimeError(f"codex CLI exited {proc.returncode}: {err.decode()[:2000]}")
+                detail = (err + b"\n" + out).decode(errors="replace")[:4000]
+                if session_id and _session_is_unavailable(detail):
+                    raise CodexSessionUnavailableError(detail)
+                raise RuntimeError(f"codex CLI exited {proc.returncode}: {detail}")
             try:
                 with open(out_path, "r", encoding="utf-8") as f:
                     text = f.read().strip()
@@ -106,7 +220,12 @@ class LocalCodexProvider(Provider):
                 text = ""
             if not text:
                 raise RuntimeError("codex CLI produced no output")
-            return text, {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+            resolved_session_id = _thread_id_from_jsonl(out) or session_id
+            return (
+                text,
+                {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+                resolved_session_id,
+            )
         finally:
             if proc is not None and proc.returncode is None:
                 await terminate_process_tree(proc)
@@ -114,6 +233,11 @@ class LocalCodexProvider(Provider):
                 os.unlink(out_path)
             except OSError:
                 pass
+            for image_path in image_paths:
+                try:
+                    os.unlink(image_path)
+                except OSError:
+                    pass
 
     async def stream(
         self, system: str, messages: list[Message], model: str | None = None

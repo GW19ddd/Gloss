@@ -24,6 +24,7 @@ from .routers import (
     annotations,
     citations,
     papers,
+    plugins,
     scholar,
     settings,
     skills,
@@ -77,6 +78,7 @@ app.include_router(ai.router)
 app.include_router(citations.router)
 app.include_router(scholar.router)
 app.include_router(annotations.router)
+app.include_router(plugins.router)
 app.include_router(skills.router)
 app.include_router(settings.router)
 

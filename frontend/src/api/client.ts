@@ -15,6 +15,12 @@ export interface Paper {
   tags: string[];
   added_at: number;
 }
+export interface Chat {
+  id: string;
+  paper_id: string;
+  title: string;
+  created_at: number;
+}
 
 export type ImportJobStatus =
   | "queued"
@@ -76,6 +82,93 @@ export interface Highlight {
   text: string;
   note: string;
   kind: string;
+}
+export type DrawingTool = "pencil" | "pen" | "highlighter";
+export interface Drawing {
+  id: string;
+  paper_id: string;
+  page: number;
+  points: [number, number][];
+  color: string;
+  width: number;
+  tool: DrawingTool;
+  note: string;
+  created_at: number;
+}
+export interface PersonalNote {
+  paper_id: string;
+  content: string;
+  updated_at: number | null;
+}
+export interface ChatAttachment {
+  id: string;
+  kind: "pdf_region";
+  page: number;
+  image_data_url: string;
+  extracted_text: string;
+  bounds: [number, number, number, number];
+}
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  attachments: ChatAttachment[];
+}
+export interface PluginManifest {
+  api_version: 1;
+  id: string;
+  name: string;
+  name_zh?: string;
+  version: string;
+  author: string;
+  icon: string;
+  description: string;
+  description_zh?: string;
+  tab_name: string;
+  tab_name_zh?: string;
+  contributes: {
+    paper_sidebar: {
+      tab_name: string;
+      tab_name_zh?: string;
+      icon: string;
+    };
+  };
+  permissions: string[];
+  prompt: string;
+  output: "markdown";
+  builtin: boolean;
+  installed?: boolean;
+}
+export interface CoreExtension {
+  id: string;
+  name: string;
+  name_zh: string;
+  icon: string;
+  description: string;
+  description_zh: string;
+  builtin: true;
+}
+export interface PluginContributionPoint {
+  id: string;
+  status: "stable" | "planned";
+  description: string;
+}
+export interface ComingSoonExtension {
+  id: string;
+  name: string;
+  name_zh: string;
+  icon: string;
+  description: string;
+  description_zh: string;
+  planned_contribution: string;
+}
+export interface PluginSnapshot {
+  api_version: number;
+  permissions: string[];
+  contribution_points: PluginContributionPoint[];
+  core: CoreExtension[];
+  marketplace: PluginManifest[];
+  installed: PluginManifest[];
+  coming_soon: ComingSoonExtension[];
 }
 export interface Reference {
   id: string;
@@ -286,6 +379,46 @@ export const api = {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(fields),
     }).then((r) => j<Highlight>(r)),
+  listDrawings: (id: string) =>
+    fetch(`/api/papers/${id}/drawings`).then((r) => j<{ drawings: Drawing[] }>(r)),
+  addDrawing: (id: string, drawing: Pick<Drawing, "page" | "points" | "color" | "width" | "tool">) =>
+    fetch(`/api/papers/${id}/drawings`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(drawing),
+    }).then((r) => j<Drawing>(r)),
+  deleteDrawing: (drawingId: string) =>
+    fetch(`/api/drawings/${drawingId}`, { method: "DELETE" }).then((r) => j<any>(r)),
+  getPersonalNote: (id: string) =>
+    fetch(`/api/papers/${id}/personal-note`).then((r) => j<PersonalNote>(r)),
+  savePersonalNote: (id: string, content: string) =>
+    fetch(`/api/papers/${id}/personal-note`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content }),
+    }).then((r) => j<PersonalNote>(r)),
+
+  listPlugins: () => fetch("/api/plugins").then((r) => j<PluginSnapshot>(r)),
+  getPluginManifestSchema: () => fetch("/api/plugins/schema").then((r) => j<Record<string, unknown>>(r)),
+  getPluginManifestTemplate: () => fetch("/api/plugins/template").then((r) => j<Record<string, unknown>>(r)),
+  installMarketplacePlugin: (pluginId: string) =>
+    fetch(`/api/plugins/${encodeURIComponent(pluginId)}/install`, { method: "POST" })
+      .then((r) => j<PluginManifest>(r)),
+  installPluginManifest: (manifest: Record<string, unknown>) =>
+    fetch("/api/plugins/install", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ manifest }),
+    }).then((r) => j<PluginManifest>(r)),
+  uninstallPlugin: (pluginId: string) =>
+    fetch(`/api/plugins/${encodeURIComponent(pluginId)}`, { method: "DELETE" })
+      .then((r) => j<any>(r)),
+  runPlugin: (pluginId: string, paperId: string, refresh = false) =>
+    fetch(`/api/plugins/${encodeURIComponent(pluginId)}/papers/${paperId}/run`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ refresh }),
+    }).then((r) => j<{ markdown: string }>(r)),
 
   getReferences: (id: string) =>
     fetch(`/api/papers/${id}/references`).then((r) => j<{ references: Reference[] }>(r)),
@@ -307,17 +440,23 @@ export const api = {
 
   // per-paper chat history
   listChats: (paperId: string) =>
-    fetch(`/api/papers/${paperId}/chats`).then((r) => j<{ chats: any[] }>(r)),
+    fetch(`/api/papers/${paperId}/chats`).then((r) => j<{ chats: Chat[] }>(r)),
   createChat: (paperId: string, title = "Chat") =>
     fetch(`/api/papers/${paperId}/chats`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ title }),
-    }).then((r) => j<{ id: string }>(r)),
+    }).then((r) => j<Chat>(r)),
   getChatMessages: (chatId: string) =>
     fetch(`/api/chats/${chatId}/messages`).then((r) =>
-      j<{ messages: { role: string; content: string }[] }>(r),
+      j<{ messages: ChatMessage[] }>(r),
     ),
+  updateChatTitle: (chatId: string, title: string) =>
+    fetch(`/api/chats/${chatId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title }),
+    }).then((r) => j<Chat>(r)),
   deleteChat: (chatId: string) =>
     fetch(`/api/chats/${chatId}`, { method: "DELETE" }).then((r) => j<any>(r)),
 

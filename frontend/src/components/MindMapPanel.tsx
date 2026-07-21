@@ -4,8 +4,11 @@ import {
   Background,
   MiniMap,
   Controls,
+  BaseEdge,
   Handle,
   Position,
+  type EdgeProps,
+  type EdgeTypes,
   type NodeProps,
   type NodeTypes,
   type Node,
@@ -15,13 +18,14 @@ import "@xyflow/react/dist/style.css";
 import { api, MindNode } from "../api/client";
 import { useOp } from "../api/ops";
 import { useStore } from "../store";
+import {
+  MIND_NODE_WIDTH,
+  MIND_X_STEP,
+  getMindEdgeGeometry,
+} from "../mindMapGeometry.mjs";
 
 // Hard cap on how many tree nodes we lay out (keeps huge maps readable + fast).
 const MAX_NODES = 80;
-// Layout geometry (deterministic left-to-right tidy tree).
-const X_STEP = 260;
-const Y_STEP = 64;
-
 // Left-bar color by depth (fallback when a node has no kind).
 const DEPTH_COLORS = ["var(--accent2)", "var(--accent)", "#4fb8a0", "#7f8aa0"];
 function colorForDepth(depth: number): string {
@@ -73,8 +77,8 @@ function MindCardImpl({ data }: NodeProps) {
     <div
       style={{
         position: "relative",
-        minWidth: 150,
-        maxWidth: 250,
+        width: MIND_NODE_WIDTH,
+        boxSizing: "border-box",
         background: "var(--bg2)",
         border: "1px solid var(--border)",
         borderLeft: `4px solid ${bar}`,
@@ -159,8 +163,32 @@ function MindCardImpl({ data }: NodeProps) {
 }
 const MindCard = memo(MindCardImpl);
 
+function MindEdgeImpl({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  markerEnd,
+  style,
+  interactionWidth,
+}: EdgeProps) {
+  const { path } = getMindEdgeGeometry(sourceX, sourceY, targetX, targetY);
+  return (
+    <BaseEdge
+      id={id}
+      path={path}
+      markerEnd={markerEnd}
+      style={style}
+      interactionWidth={interactionWidth}
+    />
+  );
+}
+const MindEdge = memo(MindEdgeImpl);
+
 // Registered at module scope so React Flow never sees a new object each render.
 const nodeTypes: NodeTypes = { mind: MindCard };
+const edgeTypes: EdgeTypes = { mind: MindEdge };
 
 // ---------------------------------------------------------------------------
 // Tree -> flat structure with stable ids (independent of collapse)
@@ -228,7 +256,7 @@ function layout(flat: Flat, collapsed: Set<string>): { nodes: Node[]; edges: Edg
   // Estimate each card's rendered height so taller (summary-bearing) cards don't
   // overlap: leaves are packed by cumulative height; internal nodes are centered
   // on their children. `centerById` holds vertical CENTERS (converted to top later).
-  const NODE_GAP = 26;
+  const NODE_GAP = 36;
   function estH(f: any): number {
     const titleLines = Math.min(3, Math.max(1, Math.ceil((f.title?.length || 0) / 24)));
     return Math.max(54, 18 + (f.kind ? 14 : 0) + titleLines * 17 + (f.summary ? 34 : 0));
@@ -246,9 +274,8 @@ function layout(flat: Flat, collapsed: Set<string>): { nodes: Node[]; edges: Edg
       center = cursorY + h / 2;
       cursorY += h + NODE_GAP;
     } else {
-      let sum = 0;
-      for (const cid of kids) sum += place(cid);
-      center = sum / kids.length;
+      const childCenters = kids.map(place);
+      center = (childCenters[0] + childCenters[childCenters.length - 1]) / 2;
     }
     centerById.set(id, center);
     return center;
@@ -262,7 +289,7 @@ function layout(flat: Flat, collapsed: Set<string>): { nodes: Node[]; edges: Edg
     nodes.push({
       id,
       type: "mind",
-      position: { x: f.depth * X_STEP, y: center - estH(f) / 2 },
+      position: { x: f.depth * MIND_X_STEP, y: center - estH(f) / 2 },
       data: {
         title: f.title,
         kind: f.kind,
@@ -281,7 +308,7 @@ function layout(flat: Flat, collapsed: Set<string>): { nodes: Node[]; edges: Edg
         id: `e-${f.parentId}-${id}`,
         source: f.parentId,
         target: id,
-        type: "smoothstep",
+        type: "mind",
       });
     }
   }
@@ -383,10 +410,12 @@ export function MindMapPanel() {
       const active = !!focusedId && (e.source === focusedId || e.target === focusedId);
       return {
         ...e,
-        animated: active,
+        animated: false,
         style: {
           stroke: active ? "var(--accent)" : "var(--border)",
           strokeWidth: active ? 2 : 1.5,
+          opacity: focusedId ? (active ? 1 : 0.14) : 0.78,
+          transition: "stroke .18s ease, opacity .18s ease",
         },
       };
     });
@@ -501,6 +530,7 @@ export function MindMapPanel() {
             nodes={nodes}
             edges={edges}
             nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
             fitView
             minZoom={0.1}
             maxZoom={2}
