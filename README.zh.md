@@ -95,8 +95,6 @@ npx gloss-local@latest
 bunx gloss-local@latest
 ```
 
-Windows 如果无法使用 `python --version`，可以改用 `py --version`。
-
 首次运行会自动创建隔离环境并安装后端依赖，以后直接复用。也可以运行
 `npm install --global gloss-local` 或 `bun add --global gloss-local` 永久安装，再用 `gloss`
 启动。Debian / Ubuntu 可能还需要执行 `sudo apt install python3-venv`。
@@ -113,8 +111,34 @@ npm start
 # 或：bun run setup && bun run start
 ```
 
+#### 系统原生脚本（可选）
+
+```bash
+# Linux
+scripts/setup.sh
+scripts/run.sh
+
+# Windows PowerShell
+.\scripts\setup.ps1
+.\scripts\run.ps1
+```
+
 打开 `http://localhost:8010`。可以用 `--port` 和 `--host` 修改地址，例如：
 `npx gloss-local@latest --port 6006 --host 127.0.0.1`。
+
+### 远程 Linux / SSH
+
+先在服务器启动 Gloss，再从本机建立 SSH 隧道：
+
+```bash
+# 远程服务器
+npx gloss-local@latest --host 127.0.0.1 --port 8010
+
+# 本机
+ssh -N -L 8010:127.0.0.1:8010 -p <SSH端口> user@server
+```
+
+然后在本机打开 `http://localhost:8010`。
 
 数据默认保存在 Windows 的 `%LOCALAPPDATA%\Gloss\data`，以及 Linux 的
 `$XDG_DATA_HOME/gloss`（默认为 `~/.local/share/gloss`）；可用 `GLOSS_DATA_DIR` 修改。

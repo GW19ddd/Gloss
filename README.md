@@ -96,8 +96,6 @@ npx gloss-local@latest
 bunx gloss-local@latest
 ```
 
-On Windows, use `py --version` if `python --version` is unavailable.
-
 The first run installs the backend into an isolated environment; later runs reuse it. For a permanent
 command, run `npm install --global gloss-local` or `bun add --global gloss-local`, then start Gloss with
 `gloss`. Debian / Ubuntu may also need `sudo apt install python3-venv`.
@@ -114,8 +112,34 @@ npm start
 # or: bun run setup && bun run start
 ```
 
+#### Native scripts (optional)
+
+```bash
+# Linux
+scripts/setup.sh
+scripts/run.sh
+
+# Windows PowerShell
+.\scripts\setup.ps1
+.\scripts\run.ps1
+```
+
 Open `http://localhost:8010`. Use `--port` and `--host` to change the address, for example:
 `npx gloss-local@latest --port 6006 --host 127.0.0.1`.
+
+### Remote Linux over SSH
+
+Start Gloss on the server, then create a tunnel from your local computer:
+
+```bash
+# Remote server
+npx gloss-local@latest --host 127.0.0.1 --port 8010
+
+# Local computer
+ssh -N -L 8010:127.0.0.1:8010 -p <ssh-port> user@server
+```
+
+Open `http://localhost:8010` locally.
 
 Persistent data is stored in `%LOCALAPPDATA%\Gloss\data` on Windows and
 `$XDG_DATA_HOME/gloss` (default `~/.local/share/gloss`) on Linux. Set `GLOSS_DATA_DIR` to override it.
