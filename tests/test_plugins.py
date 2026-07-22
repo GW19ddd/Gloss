@@ -11,6 +11,12 @@ def test_marketplace_install_and_uninstall(client):
     assert {item["id"] for item in body["core"]} >= {
         "core.summary", "core.notes", "core.personal-notes", "core.mindmap"
     }
+    assert {item["id"] for item in body["marketplace"]} >= {
+        "gloss.critical-review",
+        "gloss.implementation-blueprint",
+        "gloss.evidence-table",
+        "gloss.presentation-outline",
+    }
     plugin = body["marketplace"][0]
 
     try:

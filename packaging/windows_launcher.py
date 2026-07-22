@@ -231,12 +231,14 @@ def _run_desktop(url: str, storage_path: Path) -> None:
     )
     bridge.bind(window)
     window.events.closing += bridge.on_closing
-    webview.start(
-        gui="edgechromium",
-        debug=False,
-        storage_path=str(storage_path),
-        icon=str(icon_path),
-    )
+    start_options: dict[str, Any] = {
+        "debug": False,
+        "storage_path": str(storage_path),
+    }
+    if sys.platform == "win32":
+        # Preserve the packaged Windows application's Edge WebView2 backend.
+        start_options.update(gui="edgechromium", icon=str(icon_path))
+    webview.start(**start_options)
 
 
 def _parser() -> argparse.ArgumentParser:

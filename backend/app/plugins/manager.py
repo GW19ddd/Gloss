@@ -185,6 +185,115 @@ MARKETPLACE = [
             "implementation-sensitive details. Preserve mathematical notation in LaTeX."
         ),
     },
+    {
+        "id": "gloss.implementation-blueprint",
+        "name": "Implementation Blueprint",
+        "name_zh": "实现蓝图",
+        "version": "1.0.0",
+        "author": "Gloss",
+        "icon": "⌨",
+        "description": "Turn the method into an engineering plan with modules, interfaces, and pseudocode.",
+        "description_zh": "将方法整理为模块、接口与伪代码组成的工程实现计划。",
+        "tab_name": "Build",
+        "tab_name_zh": "实现",
+        "permissions": ["paper:read", "ai:complete"],
+        "prompt": (
+            "Create an implementation blueprint for this paper. Identify the inputs, "
+            "outputs, data flow, model modules, loss functions, training loop, evaluation "
+            "loop, and failure-prone details. Include language-agnostic pseudocode and a "
+            "short list of implementation decisions that the paper leaves unspecified."
+        ),
+    },
+    {
+        "id": "gloss.evidence-table",
+        "name": "Evidence Table",
+        "name_zh": "证据表",
+        "version": "1.0.0",
+        "author": "Gloss",
+        "icon": "▤",
+        "description": "Map every central claim to supporting evidence, caveats, and source locations.",
+        "description_zh": "将核心结论对应到支持证据、限制条件和论文位置。",
+        "tab_name": "Evidence",
+        "tab_name_zh": "证据",
+        "permissions": ["paper:read", "ai:complete"],
+        "prompt": (
+            "Build a rigorous evidence table for the paper. For each important claim, list "
+            "the supporting experiment, result, figure/table/section location, strength of "
+            "the evidence, assumptions, and the strongest caveat. Do not invent results."
+        ),
+    },
+    {
+        "id": "gloss.terminology-glossary",
+        "name": "Terminology Glossary",
+        "name_zh": "术语词汇表",
+        "version": "1.0.0",
+        "author": "Gloss",
+        "icon": "Aa",
+        "description": "Create a reader-friendly glossary of the paper's terms, symbols, and abbreviations.",
+        "description_zh": "生成论文术语、符号与缩写的易读词汇表。",
+        "tab_name": "Glossary",
+        "tab_name_zh": "术语",
+        "permissions": ["paper:read", "ai:complete"],
+        "prompt": (
+            "Create a compact glossary for this paper. Cover domain-specific terms, all "
+            "important abbreviations, and mathematical symbols. Give a plain-language "
+            "definition, the paper-specific meaning, and where the reader should look next."
+        ),
+    },
+    {
+        "id": "gloss.figure-table-guide",
+        "name": "Figure & Table Guide",
+        "name_zh": "图表导读",
+        "version": "1.0.0",
+        "author": "Gloss",
+        "icon": "▧",
+        "description": "Explain the role, reading order, and takeaway of the paper's important figures and tables.",
+        "description_zh": "解释重要图表的作用、阅读顺序和应得出的结论。",
+        "tab_name": "Figures",
+        "tab_name_zh": "图表",
+        "permissions": ["paper:read", "ai:complete"],
+        "prompt": (
+            "Write a guided tour of the paper's figures and tables. For every important one, "
+            "state the question it answers, how to read axes/rows/columns, the key result, "
+            "and any misleading or missing comparison. Refer to its exact label when present."
+        ),
+    },
+    {
+        "id": "gloss.presentation-outline",
+        "name": "Presentation Outline",
+        "name_zh": "汇报提纲",
+        "version": "1.0.0",
+        "author": "Gloss",
+        "icon": "▱",
+        "description": "Turn the paper into a clear 8–12 slide journal-club or lab-meeting outline.",
+        "description_zh": "将论文整理成适合组会或 journal club 的 8–12 页汇报提纲。",
+        "tab_name": "Present",
+        "tab_name_zh": "汇报",
+        "permissions": ["paper:read", "ai:complete"],
+        "prompt": (
+            "Create an 8–12 slide presentation outline for this paper. For each slide, give "
+            "a title, 2–4 speaking bullets, the most useful figure or table to show, and a "
+            "speaker note. End with discussion questions and an honest limitations slide."
+        ),
+    },
+    {
+        "id": "gloss.reading-plan",
+        "name": "Reading Plan",
+        "name_zh": "阅读路线",
+        "version": "1.0.0",
+        "author": "Gloss",
+        "icon": "◷",
+        "description": "Build a time-boxed reading route for skimming, studying, or reproducing the paper.",
+        "description_zh": "为速读、精读或复现制定分阶段、限时的阅读路线。",
+        "tab_name": "Plan",
+        "tab_name_zh": "路线",
+        "permissions": ["paper:read", "ai:complete"],
+        "prompt": (
+            "Offer three practical reading routes for this paper: a 10-minute skim, a "
+            "45-minute study session, and a reproduction-oriented deep read. For each route, "
+            "give section order, questions to answer, what to annotate, and a concrete outcome."
+        ),
+    },
 ]
 
 COMING_SOON = [

@@ -12,6 +12,9 @@ export function ExtensionsPanel() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [developerOpen, setDeveloperOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackTitle, setFeedbackTitle] = useState("");
+  const [feedbackDetail, setFeedbackDetail] = useState("");
   const [template, setTemplate] = useState<Record<string, unknown> | null>(null);
   const [templateCopied, setTemplateCopied] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -19,13 +22,14 @@ export function ExtensionsPanel() {
     ? {
         title: "插件市场", installed: "已安装", builtIn: "内置模块", market: "推荐插件", comingSoon: "即将推出",
         install: "安装", uninstall: "卸载", open: "打开", import: "导入自定义插件",
-        developer: "插件 API", apiVersion: "插件 API 版本", copyTemplate: "复制示例 manifest", copied: "已复制", schema: "打开 JSON Schema",
+        developer: "插件 API", feedback: "提交需求", feedbackTitle: "想添加什么插件或功能？", feedbackDetail: "请描述使用场景、预期结果或参考链接", feedbackSend: "发送需求邮件", feedbackHint: "将通过本机默认邮件客户端发往 2651159710@qq.com。", feedbackNeedText: "请填写标题和说明。", apiVersion: "插件 API 版本", copyTemplate: "复制示例 manifest", copied: "已复制", schema: "打开 JSON Schema",
         safe: "插件采用声明式清单，只能在授权后读取当前论文并调用 AI，不执行任意脚本。",
         imported: "插件已安装", uninstalled: "插件已卸载", uninstallConfirm: "卸载后将移除插件入口，并清除该插件生成的缓存内容。确定卸载吗？", failed: "插件操作失败",
       }
     : {
         title: "Extension Marketplace", installed: "Installed", builtIn: "Built-in modules", comingSoon: "Coming soon",
         market: "Featured extensions", install: "Install", uninstall: "Uninstall", open: "Open", developer: "Plugin API",
+        feedback: "Request an extension", feedbackTitle: "What should Gloss add?", feedbackDetail: "Describe the use case, expected output, or a reference link", feedbackSend: "Send request by email", feedbackHint: "Opens your default mail app addressed to 2651159710@qq.com.", feedbackNeedText: "Please add a title and description.",
         apiVersion: "Plugin API version", copyTemplate: "Copy sample manifest", copied: "Copied", schema: "Open JSON Schema",
         import: "Import custom plugin", safe: "Plugins use declarative manifests. They can read the current paper and call AI only with declared permissions; arbitrary scripts are not executed.",
         imported: "Plugin installed", uninstalled: "Plugin uninstalled", uninstallConfirm: "Uninstalling removes the plugin entry and its generated cache. Continue?", failed: "Plugin operation failed",
@@ -100,6 +104,22 @@ export function ExtensionsPanel() {
     }
   }
 
+  function submitFeedback(event: React.FormEvent) {
+    event.preventDefault();
+    const title = feedbackTitle.trim();
+    const detail = feedbackDetail.trim();
+    if (!title || !detail) {
+      setError(T.feedbackNeedText);
+      return;
+    }
+    const subject = `[Gloss request] ${title}`;
+    const body = `${detail}\n\n---\nSent from Gloss Extension Marketplace`;
+    window.location.href = `mailto:2651159710@qq.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    setFeedbackOpen(false);
+    setFeedbackTitle("");
+    setFeedbackDetail("");
+  }
+
   const card = (plugin: PluginManifest, source: "market" | "installed") => (
     <div className="extension-card" key={`${source}:${plugin.id}`}>
       <div className="extension-icon">{plugin.icon || "🧩"}</div>
@@ -135,12 +155,29 @@ export function ExtensionsPanel() {
     <div className="panel-body extensions-panel">
       <div className="extensions-heading">
         <div><span className="extensions-mark">▦</span><strong>{T.title}</strong></div>
+        <button onClick={() => setFeedbackOpen((open) => !open)}>{T.feedback}</button>
         <button onClick={() => void toggleDeveloper()}>{T.developer}</button>
         <button onClick={() => fileRef.current?.click()} disabled={busy === "import"}>{T.import}</button>
         <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={(e) => importManifest(e.target.files?.[0])} />
       </div>
       <p className="extension-safety">🔒 {T.safe}</p>
       {error && <div className="error">{T.failed}: {error}</div>}
+      {feedbackOpen && (
+        <form className="extension-feedback" onSubmit={submitFeedback}>
+          <label>
+            <span>{T.feedbackTitle}</span>
+            <input value={feedbackTitle} onChange={(event) => setFeedbackTitle(event.target.value)} maxLength={120} autoFocus />
+          </label>
+          <label>
+            <span>{T.feedbackDetail}</span>
+            <textarea value={feedbackDetail} onChange={(event) => setFeedbackDetail(event.target.value)} maxLength={2000} rows={4} />
+          </label>
+          <div className="extension-feedback-actions">
+            <small>{T.feedbackHint}</small>
+            <button type="submit">✉ {T.feedbackSend}</button>
+          </div>
+        </form>
+      )}
       {developerOpen && (
         <div className="extension-developer">
           <div className="extension-dev-head">

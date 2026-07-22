@@ -1,8 +1,10 @@
-# PyInstaller recipe for the portable, single-file Windows application.
+# PyInstaller recipe for the portable, single-file desktop application.
 from pathlib import Path
+import sys
 
 
 project_root = Path(SPECPATH).parent
+windows_icon = project_root / "packaging" / "gloss.ico"
 
 a = Analysis(
     [str(project_root / "packaging" / "windows_launcher.py")],
@@ -16,6 +18,11 @@ a = Analysis(
         "webview",
         "webview.platforms.edgechromium",
         "webview.platforms.winforms",
+        # pywebview loads these platform backends dynamically. Keep them in
+        # the frozen bundle so the macOS and Linux release archives start
+        # without a Python environment beside them.
+        "webview.platforms.cocoa",
+        "webview.platforms.gtk",
         "uvicorn.logging",
         "uvicorn.loops.auto",
         "uvicorn.protocols.http.auto",
@@ -62,5 +69,8 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=str(project_root / "packaging" / "gloss.ico"),
+    # PyInstaller expects an .icns file on macOS. The existing .ico is used
+    # only for Windows releases; the other platform archives use their native
+    # executable icon defaults.
+    icon=str(project_root / "packaging" / "gloss.ico") if sys.platform == "win32" else None,
 )

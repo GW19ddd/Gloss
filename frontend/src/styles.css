@@ -661,6 +661,13 @@ button.small { font-size: 12px; padding: 3px 8px; margin-top: 6px; }
 .extensions-heading > div:first-child { margin-right: auto; }
 .extensions-mark { color: var(--accent); font-size: 18px; }
 .extension-safety { color: var(--fg-dim); font-size: 11.5px; line-height: 1.45; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg2); }
+.extension-feedback { display: grid; gap: 9px; margin-top: 10px; padding: 10px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: 9px; background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 10%, var(--bg2)), var(--bg2)); }
+.extension-feedback label { display: grid; gap: 5px; color: var(--fg-dim); font-size: 11px; }
+.extension-feedback input, .extension-feedback textarea { width: 100%; box-sizing: border-box; resize: vertical; border: 1px solid var(--border); border-radius: 7px; background: var(--bg); color: var(--fg); padding: 7px 8px; font: inherit; font-size: 12px; }
+.extension-feedback input:focus, .extension-feedback textarea:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent); }
+.extension-feedback-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.extension-feedback-actions small { color: var(--fg-dim); line-height: 1.35; }
+.extension-feedback-actions button { flex: 0 0 auto; border: 1px solid var(--accent); border-radius: 7px; background: var(--accent); color: var(--on-accent); padding: 5px 9px; font-size: 11px; }
 .extension-grid { display: grid; gap: 8px; }
 .extension-developer { margin-top: 10px; padding: 10px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: 9px; background: var(--bg2); }
 .extension-dev-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
