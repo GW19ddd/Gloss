@@ -37,9 +37,31 @@ React / PDF.js 的阅读器界面，并驱动一个大模型帮你速览、研�
 
 ## 👀 预览
 
+在同一个本地工作区里读论文、查看 AI 梳理的结构，并管理自己的论文库。想看可交互的产品介绍，
+可访问 [Gloss 主页](https://computersniper.github.io/gloss-site/)。
+
+<table>
+  <tr>
+    <td width="62%" valign="top">
+      <img src="./docs/reader-summary.png" alt="Gloss 阅读器：论文 PDF 旁展示 AI 生成的结构化摘要" />
+    </td>
+    <td width="38%" valign="top">
+      <img src="./docs/app-library.png" alt="Gloss 桌面应用的论文库与导入控件" />
+    </td>
+  </tr>
+  <tr>
+    <td valign="top"><b>阅读器演示</b><br />真正的 PDF 文本层与结构化 AI 速览并列，还能继续批注、对话与记笔记。</td>
+    <td valign="top"><b>本地论文库</b><br />从 arXiv、DOI、URL 或 PDF 文件导入，论文始终保留在自己的机器上。</td>
+  </tr>
+</table>
+
 <p align="center">
-  <img src="./docs/reader-summary.png" alt="Gloss 论文阅读器：左侧 PDF，右侧 AI 结构化摘要" />
+  <img src="./docs/app-import.png" width="860" alt="Gloss 导入面板：本地 AI provider 状态、URL 与 PDF 导入控件" />
 </p>
+
+<p align="center"><b>导入论文</b> — 粘贴 arXiv / DOI / URL，或直接拖入 PDF；导入会在本地继续进行，不影响你浏览其他内容。</p>
+
+<p align="center"><sub>以上为桌面应用截图；网页版使用同一套本地工作区。</sub></p>
 
 ---
 
