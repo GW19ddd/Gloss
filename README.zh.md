@@ -20,6 +20,8 @@
   <a href="https://github.com/computersniper/gloss/actions/workflows/ci.yml"><img src="https://github.com/computersniper/gloss/actions/workflows/ci.yml/badge.svg" alt="CI 状态" /></a>
 </p>
 
+<p align="center"><a href="https://computersniper.github.io/gloss-site/"><b>🌐 访问 Gloss 主页</b></a></p>
+
 ---
 
 Gloss（旁注）是一个 **自托管、本地运行** 的科研论文阅读工具。它用一个 FastAPI 后端提供基于

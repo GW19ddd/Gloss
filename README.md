@@ -20,6 +20,8 @@
   <a href="https://github.com/computersniper/gloss/actions/workflows/ci.yml"><img src="https://github.com/computersniper/gloss/actions/workflows/ci.yml/badge.svg" alt="CI status" /></a>
 </p>
 
+<p align="center"><a href="https://computersniper.github.io/gloss-site/"><b>🌐 Visit the Gloss website</b></a></p>
+
 ---
 
 Gloss (旁注) is a **self-hosted, locally-run** research-paper reader. A FastAPI backend serves a
