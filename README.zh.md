@@ -42,24 +42,22 @@ React / PDF.js 的阅读器界面，并驱动一个大模型帮你速览、研�
 
 <table>
   <tr>
-    <td width="62%" valign="top">
+    <td width="50%" valign="top">
       <img src="./docs/reader-summary.png" alt="Gloss 阅读器：论文 PDF 旁展示 AI 生成的结构化摘要" />
     </td>
-    <td width="38%" valign="top">
-      <img src="./docs/app-library.png" alt="Gloss 桌面应用的论文库与导入控件" />
+    <td width="25%" valign="top">
+      <img src="./docs/app-mindmap.png" alt="Gloss 交互式思维导图与论文概念详情面板" />
+    </td>
+    <td width="25%" valign="top">
+      <img src="./docs/app-extensions.png" alt="Gloss 插件市场：内置与已安装模块" />
     </td>
   </tr>
   <tr>
     <td valign="top"><b>阅读器演示</b><br />真正的 PDF 文本层与结构化 AI 速览并列，还能继续批注、对话与记笔记。</td>
-    <td valign="top"><b>本地论文库</b><br />从 arXiv、DOI、URL 或 PDF 文件导入，论文始终保留在自己的机器上。</td>
+    <td valign="top"><b>交互式思维导图</b><br />不离开阅读器即可浏览论文概念与它们之间的关联。</td>
+    <td valign="top"><b>插件市场</b><br />按自己的工作流安装、打开或卸载阅读模块。</td>
   </tr>
 </table>
-
-<p align="center">
-  <img src="./docs/app-import.png" width="860" alt="Gloss 导入面板：本地 AI provider 状态、URL 与 PDF 导入控件" />
-</p>
-
-<p align="center"><b>导入论文</b> — 粘贴 arXiv / DOI / URL，或直接拖入 PDF；导入会在本地继续进行，不影响你浏览其他内容。</p>
 
 <p align="center"><sub>以上为桌面应用截图；网页版使用同一套本地工作区。</sub></p>
 

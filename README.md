@@ -44,24 +44,22 @@ workspace. For the interactive product tour, visit the
 
 <table>
   <tr>
-    <td width="62%" valign="top">
+    <td width="50%" valign="top">
       <img src="./docs/reader-summary.png" alt="Gloss reader: a paper PDF beside an AI-generated structured summary" />
     </td>
-    <td width="38%" valign="top">
-      <img src="./docs/app-library.png" alt="Gloss desktop application library with paper import controls" />
+    <td width="25%" valign="top">
+      <img src="./docs/app-mindmap.png" alt="Gloss interactive mind map with a paper concept detail panel" />
+    </td>
+    <td width="25%" valign="top">
+      <img src="./docs/app-extensions.png" alt="Gloss Extension Marketplace with built-in and installed modules" />
     </td>
   </tr>
   <tr>
     <td valign="top"><b>Reader demo</b><br />A real PDF text layer stays beside a structured AI brief, with room for notes, chat, and annotations.</td>
-    <td valign="top"><b>Your local library</b><br />Import from arXiv, DOI, URL, or a PDF file, then keep every paper on your own machine.</td>
+    <td valign="top"><b>Interactive mind maps</b><br />Explore paper concepts and their connections without leaving the reader.</td>
+    <td valign="top"><b>Extension Marketplace</b><br />Install, open, or remove reading modules for your workflow.</td>
   </tr>
 </table>
-
-<p align="center">
-  <img src="./docs/app-import.png" width="860" alt="Gloss import panel with local AI provider status, URL and PDF import controls" />
-</p>
-
-<p align="center"><b>Import a paper</b> — paste an arXiv / DOI / URL, or drop in a PDF. Import work continues locally while you browse elsewhere.</p>
 
 <p align="center"><sub>Desktop application screenshots. The browser version uses the same local workspace.</sub></p>
 
