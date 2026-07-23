@@ -5,7 +5,7 @@ Tag builds publish these assets alongside the npm tarball:
 | Platform | Release asset | Contents |
 | --- | --- | --- |
 | Windows x64 (Intel / AMD) | `Gloss-windows-x64.exe` and `Gloss.exe` | Standalone desktop application |
-| Windows ARM64 | `Gloss-windows-arm64.exe` | Standalone desktop application |
+| Windows ARM64 | `Gloss-windows-x64.exe` | Runs through Windows x64 emulation; no native ARM64 binary yet |
 | Windows x86 (32-bit) | Not supported | Use a 64-bit Windows installation |
 | Linux / macOS | `gloss-local-<version>.tgz` | Run the local browser app through npm or Bun |
 | Source | `Gloss-source-<version>.tar.gz` | Source checkout for `npm run setup` / `npm start` |

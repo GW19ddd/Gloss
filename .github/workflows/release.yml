@@ -56,10 +56,6 @@ jobs:
             runner: windows-latest
             artifact_name: Gloss-windows-x64
             asset_name: Gloss-windows-x64.exe
-          - arch: arm64
-            runner: windows-11-arm
-            artifact_name: Gloss-windows-arm64
-            asset_name: Gloss-windows-arm64.exe
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4

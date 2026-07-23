@@ -114,7 +114,7 @@ Gloss 同时提供 Windows 桌面应用和浏览器网页版。两者的后端�
 | 平台 | 直接下载 |
 | --- | --- |
 | Windows x64（Intel / AMD） | [Gloss-windows-x64.exe](https://github.com/computersniper/gloss/releases/latest/download/Gloss-windows-x64.exe) |
-| Windows ARM64 | [Gloss-windows-arm64.exe](https://github.com/computersniper/gloss/releases/latest/download/Gloss-windows-arm64.exe) |
+| Windows ARM64 | 使用 [Gloss-windows-x64.exe](https://github.com/computersniper/gloss/releases/latest/download/Gloss-windows-x64.exe)（Windows 的 x64 模拟运行；暂未提供原生 ARM64 包） |
 | Windows x86（32 位） | 暂不支持；请使用 64 位 Windows |
 | Linux / macOS | 使用下一节的 npm 或 Bun 网页版 |
 | 旧版 x64 直链 | [Gloss.exe](https://github.com/computersniper/gloss/releases/latest/download/Gloss.exe) |

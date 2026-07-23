@@ -119,7 +119,7 @@ platform. Pick the one matching your computer from the
 | Platform | Direct download |
 | --- | --- |
 | Windows x64 (Intel / AMD) | [Gloss-windows-x64.exe](https://github.com/computersniper/gloss/releases/latest/download/Gloss-windows-x64.exe) |
-| Windows ARM64 | [Gloss-windows-arm64.exe](https://github.com/computersniper/gloss/releases/latest/download/Gloss-windows-arm64.exe) |
+| Windows ARM64 | Use [Gloss-windows-x64.exe](https://github.com/computersniper/gloss/releases/latest/download/Gloss-windows-x64.exe) through Windows x64 emulation (no native ARM64 binary yet) |
 | Windows x86 (32-bit) | Not supported; install 64-bit Windows |
 | Linux / macOS | Use [npm or Bun](#web-app--windows--linux-with-npm-or-bun) for the local browser app |
 | Legacy x64 link | [Gloss.exe](https://github.com/computersniper/gloss/releases/latest/download/Gloss.exe) |
