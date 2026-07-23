@@ -102,32 +102,29 @@ Paste this into Claude Code or Codex:
 Install and run https://github.com/computersniper/gloss on this computer. Use the easiest supported method for this OS, preserve existing Gloss data, and verify /api/health before giving me the local URL.
 ```
 
-Gloss is available as a Windows desktop app and as a browser-based web app. Both keep the backend, papers, and generated results on your own machine.
+Gloss is available as a native Windows desktop app and as a local browser app on Windows, Linux, and macOS. Both keep the backend, papers, and generated results on your own machine.
 
 ### Windows desktop app
 
-Download the `.exe` matching your Windows processor, then double-click it.
+Download [Gloss-windows-x64.exe](https://github.com/computersniper/gloss/releases/latest/download/Gloss-windows-x64.exe), then double-click it.
 Gloss opens in its own desktop window, without a terminal or browser tab, and
 automatically selects a free local port.
 
 ### Choose a release download
 
-Every tagged release includes a portable desktop package for each supported
-platform. Pick the one matching your computer from the
+Every tagged release includes a portable Windows desktop package and the npm
+package for the local browser app. Pick the supported path for your computer from the
 [latest release](https://github.com/computersniper/gloss/releases/latest):
 
-| Platform | Direct download |
+| Platform | Start here |
 | --- | --- |
-| Windows x64 (Intel / AMD) | [Gloss-windows-x64.exe](https://github.com/computersniper/gloss/releases/latest/download/Gloss-windows-x64.exe) |
-| Windows ARM64 | Use [Gloss-windows-x64.exe](https://github.com/computersniper/gloss/releases/latest/download/Gloss-windows-x64.exe) through Windows x64 emulation (no native ARM64 binary yet) |
-| Windows x86 (32-bit) | Not supported; install 64-bit Windows |
-| Linux / macOS | Use [npm or Bun](#web-app--windows--linux-with-npm-or-bun) for the local browser app |
-| Legacy x64 link | [Gloss.exe](https://github.com/computersniper/gloss/releases/latest/download/Gloss.exe) |
+| Windows | Download [Gloss-windows-x64.exe](https://github.com/computersniper/gloss/releases/latest/download/Gloss-windows-x64.exe) |
+| Linux / macOS | Run the [local web app](#local-web-app--windows-linux-and-macos-with-npm-or-bun) with npm or Bun |
 
 The Windows downloads are standalone `.exe` files—there is nothing to unpack.
 See [release download notes](docs/releases.md) for platform-specific details.
 
-### Web app — Windows / Linux with npm or Bun
+### Local web app — Windows, Linux, and macOS with npm or Bun
 
 Requires Node.js 18+ and Python 3.11+:
 
@@ -145,7 +142,11 @@ Then open the local URL shown in the terminal (normally `http://localhost:8010`)
 
 The first run installs the backend into an isolated environment; later runs reuse it. For a permanent
 command, run `npm install --global gloss-local` or `bun add --global gloss-local`, then start Gloss with
-`gloss`. Debian / Ubuntu may also need `sudo apt install python3-venv`.
+`gloss`.
+
+Linux and macOS use exactly the commands above; no native `.exe`, `.app`, or `.dmg` is required. On
+Debian / Ubuntu, install `python3-venv` if the first run asks for it:
+`sudo apt install python3-venv`.
 
 ### From source (developers)
 
@@ -189,7 +190,7 @@ ssh -N -L 8010:127.0.0.1:8010 -p <ssh-port> user@server
 Open `http://localhost:8010` locally.
 
 Persistent data is stored in `%LOCALAPPDATA%\Gloss\data` on Windows and
-`$XDG_DATA_HOME/gloss` (default `~/.local/share/gloss`) on Linux. Set `GLOSS_DATA_DIR` to override it.
+`$XDG_DATA_HOME/gloss` (default `~/.local/share/gloss`) on Linux and macOS. Set `GLOSS_DATA_DIR` to override it.
 
 ---
 

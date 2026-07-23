@@ -100,29 +100,26 @@ React / PDF.js 的阅读器界面，并驱动一个大模型帮你速览、研�
 请在这台电脑上安装并运行 https://github.com/computersniper/gloss。选择当前系统最简单的安装方式，保留已有 Gloss 数据，确认 /api/health 正常后告诉我本地地址。
 ```
 
-Gloss 同时提供 Windows 桌面应用和浏览器网页版。两者的后端、论文与生成结果都保存在你自己的电脑上。
+Gloss 同时提供原生 Windows 桌面应用，以及可在 Windows、Linux、macOS 本地运行的浏览器网页版。两者的后端、论文与生成结果都保存在你自己的电脑上。
 
 ### Windows 桌面应用
 
-下载与你的 Windows 处理器对应的 `.exe`，双击即可在独立桌面窗口中运行；不会显示命令行窗口，也不会打开浏览器标签页。如果默认端口被占用，Gloss 会自动选择可用端口。
+下载 [Gloss-windows-x64.exe](https://github.com/computersniper/gloss/releases/latest/download/Gloss-windows-x64.exe)，双击即可在独立桌面窗口中运行；不会显示命令行窗口，也不会打开浏览器标签页。如果默认端口被占用，Gloss 会自动选择可用端口。
 
 ### 选择发布版本
 
-每个标签版本都会提供各平台的便携桌面包。请在
-[最新 Release](https://github.com/computersniper/gloss/releases/latest) 中选择与你的电脑相符的版本：
+每个标签版本都会提供 Windows 便携桌面包，以及用于本地网页版的 npm 包。请在
+[最新 Release](https://github.com/computersniper/gloss/releases/latest) 中选择适合你电脑的方式：
 
-| 平台 | 直接下载 |
+| 平台 | 启动方式 |
 | --- | --- |
-| Windows x64（Intel / AMD） | [Gloss-windows-x64.exe](https://github.com/computersniper/gloss/releases/latest/download/Gloss-windows-x64.exe) |
-| Windows ARM64 | 使用 [Gloss-windows-x64.exe](https://github.com/computersniper/gloss/releases/latest/download/Gloss-windows-x64.exe)（Windows 的 x64 模拟运行；暂未提供原生 ARM64 包） |
-| Windows x86（32 位） | 暂不支持；请使用 64 位 Windows |
-| Linux / macOS | 使用下一节的 npm 或 Bun 网页版 |
-| 旧版 x64 直链 | [Gloss.exe](https://github.com/computersniper/gloss/releases/latest/download/Gloss.exe) |
+| Windows | 下载 [Gloss-windows-x64.exe](https://github.com/computersniper/gloss/releases/latest/download/Gloss-windows-x64.exe) |
+| Linux / macOS | 使用下一节 npm 或 Bun 启动本地网页版 |
 
 Windows 下载均为独立 `.exe`，无需解压。各平台的注意事项见
 [发布下载说明](docs/releases.md)。
 
-### 网页版——Windows / Linux，使用 npm 或 Bun
+### 本地网页版——Windows、Linux、macOS，使用 npm 或 Bun
 
 需要 Node.js 18+ 和 Python 3.11+：
 
@@ -140,7 +137,10 @@ bunx gloss-local@latest
 
 首次运行会自动创建隔离环境并安装后端依赖，以后直接复用。也可以运行
 `npm install --global gloss-local` 或 `bun add --global gloss-local` 永久安装，再用 `gloss`
-启动。Debian / Ubuntu 可能还需要执行 `sudo apt install python3-venv`。
+启动。
+
+Linux 和 macOS 与上面完全使用同一组命令；无需原生 `.exe`、`.app` 或 `.dmg`。若 Debian / Ubuntu
+首次运行提示缺少虚拟环境，请安装：`sudo apt install python3-venv`。
 
 ### 从源码运行（开发者）
 
@@ -183,7 +183,7 @@ ssh -N -L 8010:127.0.0.1:8010 -p <SSH端口> user@server
 
 然后在本机打开 `http://localhost:8010`。
 
-数据默认保存在 Windows 的 `%LOCALAPPDATA%\Gloss\data`，以及 Linux 的
+数据默认保存在 Windows 的 `%LOCALAPPDATA%\Gloss\data`，以及 Linux 和 macOS 的
 `$XDG_DATA_HOME/gloss`（默认为 `~/.local/share/gloss`）；可用 `GLOSS_DATA_DIR` 修改。
 
 ---
