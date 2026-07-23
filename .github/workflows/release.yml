@@ -47,41 +47,19 @@ jobs:
           path: release-assets/*
 
   desktop-package:
-    name: ${{ matrix.os }} ${{ matrix.arch }} desktop package
+    name: Windows ${{ matrix.arch }} desktop package
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows
-            arch: x64
+          - arch: x64
             runner: windows-latest
             artifact_name: Gloss-windows-x64
-            asset_name: Gloss-windows-x64.zip
-          - os: windows
-            arch: arm64
+            asset_name: Gloss-windows-x64.exe
+          - arch: arm64
             runner: windows-11-arm
             artifact_name: Gloss-windows-arm64
-            asset_name: Gloss-windows-arm64.zip
-          - os: macos
-            arch: x64
-            runner: macos-15-intel
-            artifact_name: Gloss-macos-x64
-            asset_name: Gloss-macos-x64.tar.gz
-          - os: macos
-            arch: arm64
-            runner: macos-14
-            artifact_name: Gloss-macos-arm64
-            asset_name: Gloss-macos-arm64.tar.gz
-          - os: linux
-            arch: x64
-            runner: ubuntu-24.04
-            artifact_name: Gloss-linux-x64
-            asset_name: Gloss-linux-x64.tar.gz
-          - os: linux
-            arch: arm64
-            runner: ubuntu-24.04-arm
-            artifact_name: Gloss-linux-arm64
-            asset_name: Gloss-linux-arm64.tar.gz
+            asset_name: Gloss-windows-arm64.exe
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -98,43 +76,20 @@ jobs:
             backend/requirements.txt
             packaging/requirements-build.txt
       - name: Build portable Windows executable
-        if: runner.os == 'Windows'
         shell: pwsh
         run: ./scripts/build-windows.ps1
-      - name: Build portable macOS or Linux executable
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          npm run build:frontend
-          python -m pip install --upgrade pip
-          python -m pip install -r backend/requirements.txt -r packaging/requirements-build.txt
-          python -m PyInstaller --noconfirm --clean packaging/Gloss.spec
       - name: Smoke test Windows executable
-        if: runner.os == 'Windows'
         shell: pwsh
         run: ./dist/Gloss.exe --version
-      - name: Smoke test macOS or Linux executable
-        if: runner.os != 'Windows'
-        shell: bash
-        run: ./dist/Gloss --version
       - name: Create Windows release assets
-        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force release-assets | Out-Null
-          Compress-Archive -Path dist/Gloss.exe -DestinationPath "release-assets/${{ matrix.asset_name }}"
+          Copy-Item dist/Gloss.exe "release-assets/${{ matrix.asset_name }}"
           if ('${{ matrix.arch }}' -eq 'x64') {
-            # Keep the original direct-download asset used by the README.
+            # Keep the original direct-download asset used by earlier README links.
             Copy-Item dist/Gloss.exe release-assets/Gloss.exe
           }
-      - name: Create macOS or Linux release archive
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          mkdir -p release-assets/package
-          cp dist/Gloss release-assets/package/Gloss
-          chmod +x release-assets/package/Gloss
-          tar -C release-assets/package -czf "release-assets/${{ matrix.asset_name }}" Gloss
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}

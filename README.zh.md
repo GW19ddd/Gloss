@@ -104,8 +104,7 @@ Gloss 同时提供 Windows 桌面应用和浏览器网页版。两者的后端�
 
 ### Windows 桌面应用
 
-[下载 **`Gloss.exe`**](https://github.com/computersniper/gloss/releases/latest/download/Gloss.exe)，
-双击即可在独立桌面窗口中运行，不会显示命令行窗口，也不会打开浏览器标签页；如果默认端口被占用，Gloss 会自动选择可用端口。
+下载与你的 Windows 处理器对应的 `.exe`，双击即可在独立桌面窗口中运行；不会显示命令行窗口，也不会打开浏览器标签页。如果默认端口被占用，Gloss 会自动选择可用端口。
 
 ### 选择发布版本
 
@@ -114,15 +113,13 @@ Gloss 同时提供 Windows 桌面应用和浏览器网页版。两者的后端�
 
 | 平台 | 直接下载 |
 | --- | --- |
-| Windows x64 | [Gloss-windows-x64.zip](https://github.com/computersniper/gloss/releases/latest/download/Gloss-windows-x64.zip) |
-| Windows ARM64 | [Gloss-windows-arm64.zip](https://github.com/computersniper/gloss/releases/latest/download/Gloss-windows-arm64.zip) |
-| macOS Intel | [Gloss-macos-x64.tar.gz](https://github.com/computersniper/gloss/releases/latest/download/Gloss-macos-x64.tar.gz) |
-| macOS Apple Silicon | [Gloss-macos-arm64.tar.gz](https://github.com/computersniper/gloss/releases/latest/download/Gloss-macos-arm64.tar.gz) |
-| Linux x64 | [Gloss-linux-x64.tar.gz](https://github.com/computersniper/gloss/releases/latest/download/Gloss-linux-x64.tar.gz) |
-| Linux ARM64 | [Gloss-linux-arm64.tar.gz](https://github.com/computersniper/gloss/releases/latest/download/Gloss-linux-arm64.tar.gz) |
-| 源代码 | [最新 Release 资源](https://github.com/computersniper/gloss/releases/latest) |
+| Windows x64（Intel / AMD） | [Gloss-windows-x64.exe](https://github.com/computersniper/gloss/releases/latest/download/Gloss-windows-x64.exe) |
+| Windows ARM64 | [Gloss-windows-arm64.exe](https://github.com/computersniper/gloss/releases/latest/download/Gloss-windows-arm64.exe) |
+| Windows x86（32 位） | 暂不支持；请使用 64 位 Windows |
+| Linux / macOS | 使用下一节的 npm 或 Bun 网页版 |
+| 旧版 x64 直链 | [Gloss.exe](https://github.com/computersniper/gloss/releases/latest/download/Gloss.exe) |
 
-解压后直接运行 `Gloss`（Windows 为 `Gloss.exe`）。各平台的注意事项见
+Windows 下载均为独立 `.exe`，无需解压。各平台的注意事项见
 [发布下载说明](docs/releases.md)。
 
 ### 网页版——Windows / Linux，使用 npm 或 Bun
