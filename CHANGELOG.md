@@ -4,6 +4,32 @@
 
 ---
 
+## v1.0.2 — 2026-07-30
+
+这一版让论文分析任务更透明、更可控，并进一步完善了插件市场、独立设置与本地发布体验。
+*Gloss now makes paper analysis more visible and controllable, with richer plugins, per-feature settings, and improved local releases.*
+
+### 🤖 可观察的研究任务 / Observable research tasks
+- Summary、Deep Paper Note、Mind Map 与插件改为可取消的后台任务，并用研究助手动画展示当前阶段、耗时和进度。
+- 打开页面不再自动调用 AI；Gloss 会优先恢复本地结果，没有结果时再由用户主动运行。
+- 多个任务可以同时进行，切换页面后也会继续运行并保留状态。
+
+### 🧠 模型、上下文与用量 / Models, context & usage
+- Summary、Translate、Deep Paper Note、Mind Map、Chat、Explain 和每个插件都可以单独选择 Provider、模型与推理强度。
+- 新增省 Token 的共享论文会话模式；兼容的 Claude 与 Codex 任务可复用论文上下文，避免反复发送全文。
+- 设置页新增本地 AI 用量统计，并区分 Provider 返回的精确值与估算值。
+
+### 🧩 插件市场与设置 / Plugins & settings
+- 可安装插件从 3 个扩展到 9 个，新增实现蓝图、证据表、术语词汇表、图表导读、汇报提纲与阅读路线。
+- 插件可声明自己的研究助手、论文内容要求和专属设置；不满足运行条件时不会浪费 AI 请求。
+- 已安装插件增加设置入口；卸载前会确认，并清理该插件生成的本地结果。
+
+### 🖥️ 发布与文档 / Releases & documentation
+- Windows 提供可直接运行的 x64 便携 EXE；Linux 与 macOS 继续通过 npm 或 Bun 运行本地网页版。
+- 新增发布下载说明、插件开发规范、产品主页入口，以及 Mind Map 和插件市场展示图。
+
+---
+
 ## v1.0.1 — 2026-07-21
 
 这一版把 Gloss 从阅读器进一步扩展为可持续工作的论文研究空间，并完善了桌面端和跨平台发布体验。

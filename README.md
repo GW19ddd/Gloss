@@ -85,15 +85,16 @@ workspace. For the interactive product tour, visit the
 | 📚 **Library** | Import by **arXiv id / DOI / URL / PDF upload**, managed in one place |
 | 🧩 **Skills** | Discover and run **Claude / Codex skills** against the current paper |
 | 🔌 **Plugins** | Install or uninstall extensible reader panels from the built-in marketplace |
-
-Plugin authors can use the declarative [Gloss Plugin Authoring
-specification](docs/plugin-authoring.md). The host supplies cancellable tasks,
-progress, model controls, shared-context mode, and default worker presentation,
-so a minimal plugin only needs its analysis prompt and sidebar contribution.
 | ➕ **Add to chat** | Select content in the PDF or any panel → send it into Chat and get an answer about it |
 | 🎨 **Themes & reading modes** | **7 color themes**, plus PDF reading modes — **Normal / Sepia (护眼) / Night (夜间)** |
 | 🗣️ **Languages** | **Interface language** (English / 中文, default English), plus the AI's **answer language** and **translation target language** |
 | ⚙️ **Quality** | Long operations keep running across tab switches; panels stay mounted so **scroll position and mind-map viewport are preserved**; **Test-connection** button for each provider |
+
+Plugin authors can use the declarative [Gloss Plugin Authoring
+specification](docs/plugin-authoring.md). The host supplies cancellable tasks,
+stage progress, model controls, shared-context mode, and default worker
+presentation, so a minimal plugin only needs its analysis prompt and sidebar
+contribution.
 
 ---
 

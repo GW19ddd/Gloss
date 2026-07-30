@@ -57,7 +57,7 @@ async def lifespan(app: FastAPI):
             logger.error("Timed out while shutting down the paper import queue")
 
 
-app = FastAPI(title="Gloss-Local", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Gloss-Local", version="1.0.2", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
