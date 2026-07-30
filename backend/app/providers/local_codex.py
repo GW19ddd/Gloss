@@ -21,14 +21,20 @@ from ..platform_support import (
     subprocess_group_options,
     terminate_process_tree,
 )
-from .base import Message, Provider, render_transcript
+from .base import (
+    Message,
+    Provider,
+    ProviderSessionUnavailableError,
+    render_transcript,
+    runtime_option,
+)
 
 
 def _cfg() -> dict:
     return load_config()["providers"]["local_codex"]
 
 
-class CodexSessionUnavailableError(RuntimeError):
+class CodexSessionUnavailableError(ProviderSessionUnavailableError):
     """Raised when a previously recorded Codex session can no longer be resumed."""
 
 
@@ -151,7 +157,7 @@ class LocalCodexProvider(Provider):
     ) -> tuple[str, dict, str | None]:
         cfg = _cfg()
         model = model or cfg.get("model", "")
-        effort = cfg.get("effort", "")
+        effort = runtime_option("effort", cfg.get("effort", ""))
         timeout = float(cfg.get("timeout", 600))
         sandbox = str(ensure_codex_sandbox())
 

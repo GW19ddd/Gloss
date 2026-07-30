@@ -1,37 +1,48 @@
-import { api } from "../api/client";
-import { useOp } from "../api/ops";
+import { useEffect } from "react";
+import { useAiTask } from "../api/aiTasks";
 import { useStore } from "../store";
+import { AgentTaskCard } from "./AgentTaskCard";
 import { Markdown } from "./Markdown";
 
 /** AI-generated Deep Paper Note. Personal notes live in PersonalNotesPanel. */
 export function NotesPanel() {
   const current = useStore((state) => state.current);
+  const outputLanguage = useStore((state) => state.outputLanguage);
   const uiLang = useStore((state) => state.uiLang);
-  const active = useStore((state) => state.activeTab) === "deep-note";
   const T = uiLang === "zh"
     ? {
+        run: "生成 Deep Paper Note",
         regenerate: "↻ 重新生成",
-        generating: "生成 Deep Paper Note 中…",
         copy: "⧉ 复制",
         download: "⬇ 下载 .md",
       }
     : {
+        run: "Generate Deep Paper Note",
         regenerate: "↻ Regenerate",
-        generating: "Generating Deep Paper Note…",
         copy: "⧉ Copy",
         download: "⬇ Download .md",
       };
-  const key = current ? `notes:${current.id}` : null;
-  const { data: markdown = "", loading, error, run } = useOp<string>(
-    key,
-    () => api.notes(current!.id).then((response) => response.markdown),
-    active,
-  );
-
-  const regenerate = () => run(
-    () => api.notes(current!.id, true).then((response) => response.markdown),
-    true,
-  );
+  const key = current ? `notes:${current.id}:${outputLanguage}` : null;
+  const { task, running, error, start, restore, cancel } = useAiTask(key);
+  useEffect(() => {
+    if (!current) return;
+    void restore({
+      feature_id: "core.notes",
+      paper_id: current.id,
+      language: outputLanguage,
+    });
+  }, [key]);
+  const raw = task?.result as string | { markdown?: string } | null | undefined;
+  const markdown = typeof raw === "string" ? raw : raw?.markdown || "";
+  const run = (refresh = false) => {
+    if (!current) return;
+    void start({
+      feature_id: "core.notes",
+      paper_id: current.id,
+      refresh,
+      language: outputLanguage,
+    });
+  };
 
   async function copy() {
     try {
@@ -57,14 +68,28 @@ export function NotesPanel() {
   return (
     <div className="panel-body">
       <div className="panel-actions">
-        <button onClick={regenerate} disabled={loading}>
-          {loading ? T.generating : T.regenerate}
+        <button onClick={() => run(!!markdown)} disabled={running || !current}>
+          {markdown ? T.regenerate : T.run}
         </button>
-        <button onClick={copy} disabled={loading || !markdown}>{T.copy}</button>
-        <button onClick={download} disabled={loading || !markdown}>{T.download}</button>
+        <button onClick={copy} disabled={running || !markdown}>{T.copy}</button>
+        <button onClick={download} disabled={running || !markdown}>{T.download}</button>
       </div>
       {error && <div className="error">{error}</div>}
-      {loading && !markdown && <div className="muted">{T.generating}</div>}
+      {task && (running || task.status === "failed" || task.status === "cancelled") && (
+        <AgentTaskCard
+          task={task}
+          uiLang={uiLang}
+          agent={{
+            name: "Deep Note Scholar",
+            name_zh: "深度笔记学者",
+            icon: "📚",
+            messages: {
+              generating: { en: "Writing the deep paper note", zh: "正在撰写深度论文笔记" },
+            },
+          }}
+          onCancel={running ? () => void cancel() : undefined}
+        />
+      )}
       {markdown && <Markdown text={markdown} />}
     </div>
   );

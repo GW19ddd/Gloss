@@ -5,9 +5,71 @@ plus a separate ``system`` string. Each provider adapts that to its transport.
 """
 from __future__ import annotations
 
-from typing import AsyncIterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Any, AsyncIterator
+
+try:
+    import tiktoken
+
+    _TOKEN_ENCODING = tiktoken.get_encoding("cl100k_base")
+except Exception:  # pragma: no cover - optional in packaged installs
+    _TOKEN_ENCODING = None
 
 Message = dict  # {"role": "user"|"assistant"|"system", "content": str}
+_RUNTIME_OPTIONS: ContextVar[dict[str, Any]] = ContextVar(
+    "gloss_provider_runtime_options", default={}
+)
+
+
+class ProviderSessionUnavailableError(RuntimeError):
+    """A persisted provider conversation can no longer be resumed."""
+
+
+@contextmanager
+def provider_runtime_options(**options: Any):
+    """Temporarily override transport details without changing its public API."""
+    merged = {**_RUNTIME_OPTIONS.get(), **{k: v for k, v in options.items() if v is not None}}
+    token = _RUNTIME_OPTIONS.set(merged)
+    try:
+        yield
+    finally:
+        _RUNTIME_OPTIONS.reset(token)
+
+
+def runtime_option(name: str, default: Any = None) -> Any:
+    return _RUNTIME_OPTIONS.get().get(name, default)
+
+
+def estimate_text_tokens(text: str) -> int:
+    """Return a clearly-labelled best-effort token estimate.
+
+    Local Codex CLI executions do not currently expose usage in their machine
+    readable output.  We use the same broadly useful tokenizer as the feature
+    prompt budgeter when it is available, with a conservative character
+    fallback for minimal installations.  Callers must retain whether a value
+    came from this function rather than presenting it as provider billing data.
+    """
+    if not text:
+        return 0
+    if _TOKEN_ENCODING is not None:
+        return len(_TOKEN_ENCODING.encode(text))
+    return max(1, len(text) // 4)
+
+
+def message_text(messages: list[Message]) -> str:
+    """Flatten text message content for an approximate input-token count."""
+    parts: list[str] = []
+    for message in messages:
+        content = message.get("content") or ""
+        if isinstance(content, list):
+            content = "\n".join(
+                block.get("text", "")
+                for block in content
+                if isinstance(block, dict) and block.get("type") == "text"
+            )
+        parts.append(str(content))
+    return "\n".join(parts)
 
 
 def render_transcript(messages: list[Message]) -> str:

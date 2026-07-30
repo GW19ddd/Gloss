@@ -8,6 +8,7 @@ frontend/dist/
 # Packaging output
 build/
 dist/
+backups/
 *.spec.bak
 gloss-local-*.tgz
 # App data (papers, uploads, db, config with keys)

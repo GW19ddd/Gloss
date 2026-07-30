@@ -114,6 +114,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "output_language": "中文 (Simplified Chinese)",
     # default TARGET language for the translate feature
     "target_language": "中文 (Simplified Chinese)",
+    # Stable feature identifiers map to optional host and plugin overrides.
+    # Missing keys inherit the active provider's defaults.
+    "feature_settings": {},
     "providers": {
         "local_claude": {
             # short names the claude CLI understands, or full claude model ids
@@ -184,6 +187,55 @@ def save_config(cfg: dict[str, Any]) -> dict[str, Any]:
 def output_language() -> str:
     """Language the AI should answer in (summaries / explain / chat)."""
     return load_config().get("output_language", "中文 (Simplified Chinese)")
+
+
+def resolve_feature_settings(
+    feature_id: str,
+    overrides: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Resolve inherited provider and plugin settings for one feature."""
+    cfg = load_config()
+    feature_settings = cfg.get("feature_settings", {})
+    feature_settings = feature_settings if isinstance(feature_settings, dict) else {}
+    saved = feature_settings.get(feature_id)
+    if saved is None and feature_id.startswith("plugin:"):
+        # Plugin settings use the manifest ID as their durable namespace.
+        saved = feature_settings.get(feature_id.removeprefix("plugin:"))
+    saved = saved or {}
+    saved = saved if isinstance(saved, dict) else {}
+    runtime = overrides if isinstance(overrides, dict) else {}
+
+    provider = runtime.get("provider")
+    if provider is None:
+        provider = saved.get("provider")
+    provider = provider or cfg.get("provider", "local_claude")
+    provider_cfg = cfg.get("providers", {}).get(provider, {})
+
+    def inherited(name: str, default: Any = None) -> Any:
+        value = runtime.get(name)
+        if value not in (None, ""):
+            return value
+        value = saved.get(name)
+        if value not in (None, ""):
+            return value
+        return provider_cfg.get(name, default)
+
+    context_mode = inherited("context_mode", "full")
+    if context_mode not in {"full", "shared_session"}:
+        context_mode = "full"
+    configuration = saved.get("configuration", {})
+    configuration = dict(configuration) if isinstance(configuration, dict) else {}
+    runtime_configuration = runtime.get("configuration")
+    if isinstance(runtime_configuration, dict):
+        configuration = _deep_merge(configuration, runtime_configuration)
+
+    return {
+        "provider": provider,
+        "model": inherited("model", ""),
+        "effort": inherited("effort", ""),
+        "context_mode": context_mode,
+        "configuration": configuration,
+    }
 
 
 def public_config() -> dict[str, Any]:

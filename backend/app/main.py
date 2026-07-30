@@ -19,6 +19,7 @@ from . import config
 from .library import store
 from .library.import_jobs import ImportJobManager
 from .providers import registry
+from .tasks import AITaskManager
 from .routers import (
     ai,
     annotations,
@@ -28,6 +29,8 @@ from .routers import (
     scholar,
     settings,
     skills,
+    tasks,
+    usage,
 )
 
 logger = logging.getLogger(__name__)
@@ -40,9 +43,11 @@ async def lifespan(app: FastAPI):
         parse_timeout=papers.IMPORT_PARSE_TIMEOUT,
         save_timeout=papers.IMPORT_SAVE_TIMEOUT,
     )
+    app.state.ai_tasks = AITaskManager()
     try:
         yield
     finally:
+        await app.state.ai_tasks.shutdown()
         try:
             await asyncio.wait_for(app.state.import_jobs.shutdown(), timeout=20)
         except TimeoutError:
@@ -81,6 +86,8 @@ app.include_router(annotations.router)
 app.include_router(plugins.router)
 app.include_router(skills.router)
 app.include_router(settings.router)
+app.include_router(usage.router)
+app.include_router(tasks.router)
 
 
 # ---------------------------------------------------------------------------

@@ -15,9 +15,10 @@ import {
   type Edge,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { api, MindNode } from "../api/client";
-import { useOp } from "../api/ops";
+import type { MindNode } from "../api/client";
+import { useAiTask } from "../api/aiTasks";
 import { useStore } from "../store";
+import { AgentTaskCard } from "./AgentTaskCard";
 import {
   MIND_NODE_WIDTH,
   MIND_X_STEP,
@@ -354,16 +355,29 @@ export function MindMapPanel() {
       };
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [focusedId, setFocusedId] = useState<string | null>(null);
+  const outputLanguage = useStore((state) => state.outputLanguage);
 
-  // detached op; autostart only when this tab is active (panels stay mounted)
-  const active = useStore((s) => s.activeTab) === "mindmap";
-  const mmKey = current ? `mindmap:${current.id}` : null;
-  const { data: tree = null, loading, error: err, run } = useOp<MindNode>(
-    mmKey,
-    () => api.mindmap(current!.id).then((r) => r.tree),
-    active,
-  );
-  const regenerate = () => run(() => api.mindmap(current!.id, true).then((r) => r.tree), true);
+  const mmKey = current ? `mindmap:${current.id}:${outputLanguage}` : null;
+  const { task, running, error: err, start, restore, cancel } = useAiTask(mmKey);
+  useEffect(() => {
+    if (!current) return;
+    void restore({
+      feature_id: "core.mindmap",
+      paper_id: current.id,
+      language: outputLanguage,
+    });
+  }, [mmKey]);
+  const taskResult = task?.result as { tree?: MindNode } | MindNode | null | undefined;
+  const tree = taskResult && "tree" in taskResult ? taskResult.tree || null : taskResult as MindNode | null;
+  const regenerate = () => {
+    if (!current) return;
+    void start({
+      feature_id: "core.mindmap",
+      paper_id: current.id,
+      refresh: !!tree,
+      language: outputLanguage,
+    });
+  };
 
   // reset the interactive view state when the paper changes
   useEffect(() => {
@@ -468,7 +482,7 @@ export function MindMapPanel() {
   } else if (!tree) {
     body = (
       <div className="muted" style={{ flex: 1, padding: 16 }}>
-        {loading ? T.building : T.none}
+        {T.none}
       </div>
     );
   } else if (!flat.rootId) {
@@ -678,10 +692,10 @@ export function MindMapPanel() {
         className="panel-actions"
         style={{ padding: "8px 12px", display: "flex", alignItems: "center", gap: 10 }}
       >
-        <button onClick={regenerate} disabled={loading || !current}>
-          {loading ? T.mapping : T.regenerate}
+        <button onClick={regenerate} disabled={running || !current}>
+          {tree ? T.regenerate : (uiLang === "zh" ? "生成概念图" : "Build concept map")}
         </button>
-        {loading && tree && <span className="muted">{T.updating}</span>}
+        {running && tree && <span className="muted">{T.updating}</span>}
         {flat.truncated && (
           <span className="muted" style={{ fontSize: 11 }}>
             {T.truncated(MAX_NODES)}
@@ -694,6 +708,23 @@ export function MindMapPanel() {
         )}
       </div>
       {err && <div className="error" style={{ padding: "0 12px 8px" }}>{err}</div>}
+      {task && (running || task.status === "failed" || task.status === "cancelled") && (
+        <div style={{ padding: "0 12px 10px" }}>
+          <AgentTaskCard
+            task={task}
+            uiLang={uiLang}
+            agent={{
+              name: "Concept Cartographer",
+              name_zh: "概念制图师",
+              icon: "🗺️",
+              messages: {
+                generating: { en: "Building the concept map", zh: "正在构建概念图" },
+              },
+            }}
+            onCancel={running ? () => void cancel() : undefined}
+          />
+        </div>
+      )}
       {body}
     </div>
   );

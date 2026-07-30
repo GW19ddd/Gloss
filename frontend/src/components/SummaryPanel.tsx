@@ -1,6 +1,8 @@
-import { api, Summary } from "../api/client";
-import { useOp } from "../api/ops";
+import { useEffect } from "react";
+import type { Summary } from "../api/client";
+import { useAiTask } from "../api/aiTasks";
 import { useStore } from "../store";
+import { AgentTaskCard } from "./AgentTaskCard";
 import { Markdown } from "./Markdown";
 
 export function SummaryPanel() {
@@ -9,19 +11,30 @@ export function SummaryPanel() {
   const uiLang = useStore((s) => s.uiLang);
   const T =
     uiLang === "zh"
-      ? { regenerate: "↻ 重新生成", summarizing: "生成摘要中…", reading: "正在阅读论文…" }
-      : { regenerate: "↻ Regenerate", summarizing: "Summarizing…", reading: "Reading the paper…" };
+      ? { run: "生成摘要", regenerate: "↻ 重新生成" }
+      : { run: "Generate summary", regenerate: "↻ Regenerate" };
 
-  // detached op; autostart only when this tab is active (panels stay mounted)
-  const active = useStore((s) => s.activeTab) === "summary";
   const key = current ? `summary:${current.id}:${outputLanguage}` : null;
-  const { data: sum, loading, error, run } = useOp<Summary>(
-    key,
-    () => api.summarize(current!.id, { language: outputLanguage }),
-    active,
-  );
-  const regenerate = () =>
-    run(() => api.summarize(current!.id, { refresh: true, language: outputLanguage }), true);
+  const { task, running, error, start, restore, cancel } = useAiTask(key);
+  useEffect(() => {
+    if (!current) return;
+    void restore({
+      feature_id: "core.summary",
+      paper_id: current.id,
+      language: outputLanguage,
+    });
+  }, [key]);
+  const raw = task?.result as Summary | { summary?: Summary } | null | undefined;
+  const sum = raw && "summary" in raw ? raw.summary : raw as Summary | undefined;
+  const run = (refresh = false) => {
+    if (!current) return;
+    void start({
+      feature_id: "core.summary",
+      paper_id: current.id,
+      refresh,
+      language: outputLanguage,
+    });
+  };
 
   const zh = uiLang === "zh";
   const L = zh
@@ -31,12 +44,19 @@ export function SummaryPanel() {
   return (
     <div className="panel-body">
       <div className="panel-actions">
-        <button onClick={regenerate} disabled={loading}>
-          {loading ? T.summarizing : T.regenerate}
+        <button onClick={() => run(!!sum)} disabled={running || !current}>
+          {sum ? T.regenerate : T.run}
         </button>
       </div>
       {error && <div className="error">{error}</div>}
-      {loading && !sum && <div className="muted">{T.reading}</div>}
+      {task && (running || task.status === "failed" || task.status === "cancelled") && (
+        <AgentTaskCard
+          task={task}
+          uiLang={uiLang}
+          agent={{ name: "Summary Scout", name_zh: "摘要侦察员", icon: "🛰️" }}
+          onCancel={running ? () => void cancel() : undefined}
+        />
+      )}
       {sum && (
         <div className="summary">
           <h4>{L.tldr}</h4>

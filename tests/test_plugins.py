@@ -1,5 +1,9 @@
 """Manifest plugin marketplace and installation lifecycle."""
 
+import asyncio
+
+import pytest
+
 
 def test_marketplace_install_and_uninstall(client):
     snapshot = client.get("/api/plugins")
@@ -96,11 +100,17 @@ def test_plugin_manifest_schema_and_template(client):
     assert schema.status_code == 200
     assert schema.json()["properties"]["api_version"]["const"] == 1
     assert "paper_sidebar" in schema.json()["properties"]["contributes"]["properties"]
+    assert "configuration" in schema.json()["properties"]["contributes"]["properties"]
+    assert "agent" in schema.json()["properties"]
+    assert "formulas" in schema.json()["properties"]["requirements"]["items"]["enum"]
 
     template = client.get("/api/plugins/template")
     assert template.status_code == 200
     assert template.json()["api_version"] == 1
     assert template.json()["contributes"]["paper_sidebar"]["tab_name"]
+    assert template.json()["contributes"]["configuration"]["properties"]
+    assert template.json()["agent"]["messages"]["reading"]
+    assert template.json()["requirements"] == ["body_text"]
 
 
 def test_plugin_run_requires_installation(client, paper_id):
@@ -108,3 +118,236 @@ def test_plugin_run_requires_installation(client, paper_id):
         f"/api/plugins/not-installed/papers/{paper_id}/run", json={}
     )
     assert response.status_code == 400
+
+
+def test_marketplace_plugins_declare_their_input_requirements(client):
+    marketplace = {item["id"]: item for item in client.get("/api/plugins").json()["marketplace"]}
+    assert all(item["requirements"] for item in marketplace.values())
+    assert marketplace["gloss.equation-guide"]["requirements"] == ["body_text", "formulas"]
+    assert marketplace["gloss.reproducibility-checklist"]["requirements"] == [
+        "body_text", "method_content"
+    ]
+    assert marketplace["gloss.implementation-blueprint"]["requirements"] == [
+        "body_text", "method_content"
+    ]
+    assert marketplace["gloss.evidence-table"]["requirements"] == [
+        "body_text", "claims_or_evidence"
+    ]
+    assert marketplace["gloss.terminology-glossary"]["requirements"] == ["body_text", "terms"]
+    assert marketplace["gloss.presentation-outline"]["requirements"] == ["body_text"]
+    assert marketplace["gloss.reading-plan"]["requirements"] == ["body_text"]
+
+
+@pytest.mark.parametrize(
+    ("requirement", "text", "expected_reason"),
+    [
+        ("formulas", "A qualitative user study with no mathematical notation.", "no_formulas"),
+        ("method_content", "This is neutral background prose without procedure details.", "no_method_content"),
+        ("claims_or_evidence", "Neutral background prose without reported findings.", "no_claims_or_evidence"),
+        ("terms", "short text", "no_terms"),
+        ("figures_or_tables", "Narrative only; no visual material is included.", "no_figures_or_tables"),
+    ],
+)
+def test_unmet_plugin_requirement_returns_status_without_calling_provider(
+    client, paper_id, monkeypatch, requirement, text, expected_reason
+):
+    """The route must short-circuit before registry.complete/provider execution."""
+    from app.plugins import manager
+    from app.providers import registry
+
+    plugin_id = f"example.preflight-{requirement.replace('_', '-')}"
+    manifest = {
+        "id": plugin_id,
+        "api_version": 1,
+        "name": "Preflight Test",
+        "version": "1.0.0",
+        "author": "Test",
+        "description": "Verifies declarative plugin preflight.",
+        "permissions": ["paper:read", "ai:complete"],
+        "requirements": [requirement],
+        "prompt": "This must not reach a provider.",
+    }
+    assert client.post("/api/plugins/install", json={"manifest": manifest}).status_code == 200
+    monkeypatch.setattr(manager.store, "load_parsed", lambda _paper_id: {"full_text": text, "pages": []})
+    calls = 0
+
+    async def provider_must_not_run(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        raise AssertionError("provider should not be called for unmet plugin requirements")
+
+    monkeypatch.setattr(registry, "complete", provider_must_not_run)
+    try:
+        response = client.post(f"/api/plugins/{plugin_id}/papers/{paper_id}/run", json={})
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body == {
+            "status": "unavailable",
+            "reason": {"code": expected_reason, "requirement": requirement},
+            "markdown": "",
+        }
+        assert calls == 0
+    finally:
+        client.delete(f"/api/plugins/{plugin_id}")
+
+
+def test_plugin_agent_and_configuration_are_declarative_and_defaulted(client):
+    plugin_id = "example.configurable-review"
+    manifest = {
+        "id": plugin_id,
+        "api_version": 1,
+        "name": "Configurable Review",
+        "version": "1.0.0",
+        "author": "Test",
+        "description": "Exercises host-rendered settings.",
+        "permissions": ["paper:read", "ai:complete"],
+        "agent": {
+            "name": "Evidence Scout",
+            "icon": "🔎",
+            "messages": {"thinking": "Checking every claim"},
+        },
+        "contributes": {
+            "paper_sidebar": {"tab_name": "Configured"},
+            "configuration": {
+                "title": "Configurable Review",
+                "properties": {
+                    f"{plugin_id}.strictness": {
+                        "type": "string",
+                        "enum": ["balanced", "strict"],
+                        "enumDescriptions": ["Major gaps", "Every material gap"],
+                        "default": "balanced",
+                        "description": "Review strictness.",
+                        "order": 10,
+                    },
+                    "includeFollowUps": {
+                        "type": "boolean",
+                        "default": True,
+                        "description": "Include follow-up experiments.",
+                        "order": 20,
+                    },
+                },
+            },
+        },
+        "prompt": "Review the supplied paper.",
+    }
+    try:
+        response = client.post("/api/plugins/install", json={"manifest": manifest})
+        assert response.status_code == 200, response.text
+        installed = response.json()
+        assert installed["agent"]["name"] == "Evidence Scout"
+        assert installed["agent"]["name_zh"] == "研究助手"
+        assert installed["agent"]["messages"]["thinking"] == "Checking every claim"
+        assert installed["agent"]["messages"]["writing"] == "Writing the result"
+        properties = installed["contributes"]["configuration"]["properties"]
+        assert set(properties) == {"strictness", "includeFollowUps"}
+        assert properties["strictness"]["default"] == "balanced"
+    finally:
+        client.delete(f"/api/plugins/{plugin_id}")
+
+
+@pytest.mark.parametrize(
+    "properties",
+    [
+        {
+            "mode": {"type": "string", "default": "normal"},
+            "mode.detail": {"type": "boolean", "default": True},
+        },
+        {"count": {"type": "integer", "default": "not-an-integer"}},
+        {"unknown": {"type": "object", "default": {}}},
+        {"missingDefault": {"type": "boolean"}},
+        {"pattern": {"type": "string", "default": "ok", "pattern": "["}},
+        {
+            "range": {
+                "type": "number",
+                "default": 2,
+                "minimum": 3,
+                "maximum": 1,
+            }
+        },
+        {"length": {"type": "string", "default": "ok", "minLength": "1"}},
+    ],
+)
+def test_invalid_plugin_configuration_schema_is_rejected(client, properties):
+    plugin_id = "example.invalid-configuration"
+    manifest = {
+        "id": plugin_id,
+        "api_version": 1,
+        "name": "Invalid Configuration",
+        "version": "1.0.0",
+        "description": "Must fail validation.",
+        "permissions": ["paper:read", "ai:complete"],
+        "contributes": {
+            "paper_sidebar": {"tab_name": "Invalid"},
+            "configuration": {"properties": properties},
+        },
+        "prompt": "Review the paper.",
+    }
+    response = client.post("/api/plugins/install", json={"manifest": manifest})
+    assert response.status_code == 400
+
+
+def test_plugin_configuration_reaches_prompt_and_partitions_cache(
+    client, paper_id, monkeypatch
+):
+    from app.plugins import manager
+
+    plugin_id = "example.prompt-settings"
+    manifest = {
+        "id": plugin_id,
+        "api_version": 1,
+        "name": "Prompt Settings",
+        "version": "1.0.0",
+        "description": "Passes validated settings to the prompt.",
+        "permissions": ["paper:read", "ai:complete"],
+        "contributes": {
+            "paper_sidebar": {"tab_name": "Prompt"},
+            "configuration": {
+                "properties": {
+                    "strictness": {
+                        "type": "string",
+                        "enum": ["balanced", "strict"],
+                        "default": "balanced",
+                    }
+                }
+            },
+        },
+        "prompt": "Review the paper.",
+    }
+    assert client.post("/api/plugins/install", json={"manifest": manifest}).status_code == 200
+    prompts: list[str] = []
+    cache_keys: list[str] = []
+
+    async def fake_complete(_system, user, **_kwargs):
+        prompts.append(user)
+        return "configured result"
+
+    def capture_cache(_paper_id, key, _value):
+        cache_keys.append(key)
+
+    monkeypatch.setattr(manager, "text_complete", fake_complete)
+    monkeypatch.setattr(manager.store, "cache_set", capture_cache)
+    try:
+        asyncio.run(
+            manager.run_plugin(
+                paper_id, plugin_id, refresh=True,
+                configuration={"strictness": "strict"},
+            )
+        )
+        asyncio.run(
+            manager.run_plugin(
+                paper_id, plugin_id, refresh=True,
+                configuration={"strictness": "balanced"},
+            )
+        )
+        assert '"strictness": "strict"' in prompts[0]
+        assert "=== PLUGIN SETTINGS ===" in prompts[0]
+        assert cache_keys[0] != cache_keys[1]
+        with pytest.raises(ValueError, match="invalid value"):
+            asyncio.run(
+                manager.run_plugin(
+                    paper_id, plugin_id, refresh=True,
+                    configuration={"strictness": "unsupported"},
+                )
+            )
+    finally:
+        client.delete(f"/api/plugins/{plugin_id}")

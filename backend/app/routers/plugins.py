@@ -1,11 +1,12 @@
 """Plugin marketplace, installation, and execution API."""
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from ..library import store
 from ..plugins import manager
+from ..providers import registry
 
 router = APIRouter(prefix="/api/plugins", tags=["plugins"])
 
@@ -53,12 +54,15 @@ async def install_marketplace(plugin_id: str):
 
 
 @router.delete("/{plugin_id}")
-async def uninstall_plugin(plugin_id: str):
+async def uninstall_plugin(plugin_id: str, request: Request):
     try:
+        cancelled_tasks = await request.app.state.ai_tasks.cancel_plugin_tasks(
+            plugin_id
+        )
         manager.uninstall(plugin_id)
     except ValueError as error:
         raise HTTPException(404, str(error)) from error
-    return {"ok": True}
+    return {"ok": True, "cancelled_tasks": cancelled_tasks}
 
 
 @router.post("/{plugin_id}/papers/{paper_id}/run")
@@ -66,14 +70,15 @@ async def run_plugin(plugin_id: str, paper_id: str, body: PluginRunBody):
     if not store.get_paper(paper_id):
         raise HTTPException(404, "paper not found")
     try:
-        markdown = await manager.run_plugin(
-            paper_id,
-            plugin_id,
-            refresh=body.refresh,
-            language=body.language,
-            provider=body.provider,
-            model=body.model,
-        )
+        with registry.usage_context("plugin", paper_id=paper_id, plugin_id=plugin_id):
+            result = await manager.run_plugin(
+                paper_id,
+                plugin_id,
+                refresh=body.refresh,
+                language=body.language,
+                provider=body.provider,
+                model=body.model,
+            )
     except ValueError as error:
         raise HTTPException(400, str(error)) from error
-    return {"markdown": markdown}
+    return result

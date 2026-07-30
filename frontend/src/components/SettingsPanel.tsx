@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { api } from "../api/client";
+import { api, type AiUsageSummary } from "../api/client";
 import { useStore } from "../store";
 import { ThemePicker } from "./ThemePicker";
 import { PdfModeToggle } from "./PdfModeToggle";
+import { FeatureSettingsEditor } from "./FeatureSettingsEditor";
 
 const LANGS = [
   "中文 (Simplified Chinese)",
@@ -25,11 +26,15 @@ export function SettingsPanel() {
   const uiLang = useStore((s) => s.uiLang);
   const setUiLang = useStore((s) => s.setUiLang);
   const checkProvider = useStore((s) => s.checkProvider);
+  const settingsFocus = useStore((s) => s.settingsFocus);
+  const openFeatureSettings = useStore((s) => s.openFeatureSettings);
   const [cfg, setCfg] = useState<any>(null);
   const [providers, setProviders] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [usage, setUsage] = useState<AiUsageSummary | null>(null);
+  const [usageLoading, setUsageLoading] = useState(false);
 
   const T = {
     en: {
@@ -51,7 +56,21 @@ export function SettingsPanel() {
       setCfg(s.config);
       setProviders(s.available_providers);
     });
+    void refreshUsage();
   }, []);
+
+  async function refreshUsage() {
+    setUsageLoading(true);
+    try {
+      setUsage(await api.getAiUsage({ limit: 20 }));
+    } catch {
+      // An older backend may not have the optional local usage endpoint yet.
+    } finally {
+      setUsageLoading(false);
+    }
+  }
+
+  const formatTokens = (value: number) => new Intl.NumberFormat().format(value || 0);
 
   if (!cfg) return <div className="panel-body muted">Loading…</div>;
 
@@ -71,6 +90,7 @@ export function SettingsPanel() {
         output_language: cfg.output_language,
         target_language: cfg.target_language,
         providers: cfg.providers,
+        feature_settings: cfg.feature_settings || {},
       });
       await loadSettings();
       if (checkConnection) await checkProvider(cfg.provider);
@@ -98,8 +118,31 @@ export function SettingsPanel() {
     }
   }
 
+  if (settingsFocus) {
+    return (
+      <div className="panel-body settings settings-feature-page">
+        <FeatureSettingsEditor
+          cfg={cfg}
+          providers={providers}
+          saving={saving}
+          setCfg={setCfg}
+          onSave={() => void save(false)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="panel-body settings">
+      <button className="settings-feature-entry" onClick={() => openFeatureSettings("core.summary")}>
+        <span>🧩</span>
+        <span>
+          <strong>{uiLang === "zh" ? "插件与功能设置" : "Plugins & feature settings"}</strong>
+          <small>{uiLang === "zh" ? "为总结、翻译、笔记和每个插件选择模型、推理强度及专属选项" : "Choose models, reasoning, context, and extension-specific options per feature"}</small>
+        </span>
+        <b>›</b>
+      </button>
+
       <label>Interface language / 界面语言</label>
       <div className="seg">
         <button className={"seg-btn" + (uiLang === "en" ? " active" : "")} onClick={() => setUiLang("en")}>
@@ -156,6 +199,46 @@ export function SettingsPanel() {
       >
         {LANGS.map((l) => <option key={l}>{l}</option>)}
       </select>
+
+      <section className="usage-card" aria-label="AI token usage">
+        <div className="usage-head">
+          <div>
+            <strong>{uiLang === "zh" ? "AI 用量统计" : "AI usage"}</strong>
+            <span>{uiLang === "zh" ? "本机保存，按完成的模型调用统计" : "Stored locally for completed model calls"}</span>
+          </div>
+          <button className="small" onClick={() => void refreshUsage()} disabled={usageLoading}>
+            {usageLoading ? (uiLang === "zh" ? "加载中…" : "Loading…") : (uiLang === "zh" ? "刷新" : "Refresh")}
+          </button>
+        </div>
+        {usage ? (
+          <>
+            <div className="usage-total">
+              <span>{uiLang === "zh" ? "总计" : "Total"}<b>{formatTokens(usage.total.total_tokens)}</b></span>
+              <span>{uiLang === "zh" ? "平均 / 任务" : "Average / task"}<b>{formatTokens(usage.total.average_total_tokens)}</b></span>
+              <span>{uiLang === "zh" ? "任务数" : "Tasks"}<b>{formatTokens(usage.total.tasks)}</b></span>
+            </div>
+            {usage.by_task.length > 0 && (
+              <div className="usage-by-task">
+                {usage.by_task.map((row) => (
+                  <div key={row.task_type}>
+                    <span>{row.task_type.replaceAll("_", " ")}</span>
+                    <b>{formatTokens(row.average_total_tokens)} <small>{uiLang === "zh" ? "平均" : "avg"}</small></b>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="usage-note">
+              {usage.total.estimated_tasks > 0
+                ? (uiLang === "zh"
+                  ? `${usage.total.estimated_tasks} 个任务为估算值（本地 CLI/流式调用未返回精确 token）。`
+                  : `${usage.total.estimated_tasks} task(s) are estimated because the local CLI or stream did not report exact tokens.`)
+                : (uiLang === "zh" ? "所有记录均由 provider 返回精确 token。" : "All recorded tasks include provider-reported token usage.")}
+            </p>
+          </>
+        ) : (
+          <p className="usage-note">{usageLoading ? "…" : (uiLang === "zh" ? "暂无已完成的 AI 任务。" : "No completed AI tasks yet.")}</p>
+        )}
+      </section>
 
       <div className="adv-head">Advanced — local CLI models &amp; thinking depth</div>
 

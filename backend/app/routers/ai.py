@@ -99,10 +99,11 @@ async def summarize(paper_id: str, body: SummarizeBody):
     if not store.get_paper(paper_id):
         raise HTTPException(404, "paper not found")
     try:
-        return await summarize_feat.summarize_paper(
-            paper_id, language=body.language, refresh=body.refresh,
-            provider=body.provider, model=body.model,
-        )
+        with registry.usage_context("summary", paper_id=paper_id):
+            return await summarize_feat.summarize_paper(
+                paper_id, language=body.language, refresh=body.refresh,
+                provider=body.provider, model=body.model,
+            )
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -112,10 +113,11 @@ async def mindmap(paper_id: str, body: SummarizeBody):
     if not store.get_paper(paper_id):
         raise HTTPException(404, "paper not found")
     try:
-        tree = await mindmap_feat.build_mindmap(
-            paper_id, language=body.language, refresh=body.refresh,
-            provider=body.provider, model=body.model,
-        )
+        with registry.usage_context("mindmap", paper_id=paper_id):
+            tree = await mindmap_feat.build_mindmap(
+                paper_id, language=body.language, refresh=body.refresh,
+                provider=body.provider, model=body.model,
+            )
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {"tree": tree}
@@ -126,10 +128,11 @@ async def notes(paper_id: str, body: SummarizeBody):
     if not store.get_paper(paper_id):
         raise HTTPException(404, "paper not found")
     try:
-        md = await notes_feat.build_notes(
-            paper_id, language=body.language, refresh=body.refresh,
-            provider=body.provider, model=body.model,
-        )
+        with registry.usage_context("notes", paper_id=paper_id):
+            md = await notes_feat.build_notes(
+                paper_id, language=body.language, refresh=body.refresh,
+                provider=body.provider, model=body.model,
+            )
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {"markdown": md}
@@ -139,10 +142,11 @@ async def notes(paper_id: str, body: SummarizeBody):
 async def explain(body: ExplainBody):
     if not body.selection.strip():
         raise HTTPException(400, "empty selection")
-    text = await explain_feat.explain_selection(
-        body.paper_id, body.selection, context=body.context,
-        language=body.language, provider=body.provider, model=body.model,
-    )
+    with registry.usage_context("explain", paper_id=body.paper_id):
+        text = await explain_feat.explain_selection(
+            body.paper_id, body.selection, context=body.context,
+            language=body.language, provider=body.provider, model=body.model,
+        )
     return {"explanation": text}
 
 
@@ -152,27 +156,30 @@ async def translate(body: TranslateBody):
     if body.paper_id and body.page_start is not None:
         end = body.page_end if body.page_end is not None else body.page_start
         try:
-            sents = await translate_feat.translate_range(
-                body.paper_id, body.page_start, end, language=body.language,
-                provider=body.provider, model=body.model,
-            )
+            with registry.usage_context("translate", paper_id=body.paper_id):
+                sents = await translate_feat.translate_range(
+                    body.paper_id, body.page_start, end, language=body.language,
+                    provider=body.provider, model=body.model,
+                )
         except ValueError as e:
             raise HTTPException(400, str(e))
         return {"sentences": sents}
     # single page
     if body.paper_id and body.page is not None:
         try:
-            sents = await translate_feat.translate_page(
-                body.paper_id, body.page, language=body.language,
-                provider=body.provider, model=body.model,
-            )
+            with registry.usage_context("translate", paper_id=body.paper_id):
+                sents = await translate_feat.translate_page(
+                    body.paper_id, body.page, language=body.language,
+                    provider=body.provider, model=body.model,
+                )
         except ValueError as e:
             raise HTTPException(400, str(e))
         return {"sentences": sents}
     if body.text:
-        out = await translate_feat.translate_text(
-            body.text, language=body.language, provider=body.provider, model=body.model
-        )
+        with registry.usage_context("translate"):
+            out = await translate_feat.translate_text(
+                body.text, language=body.language, provider=body.provider, model=body.model
+            )
         return {"translation": out}
     raise HTTPException(400, "provide text, or paper_id + page")
 
@@ -196,10 +203,11 @@ class TexTransBody(Override):
 async def translate_tex(paper_id: str, body: TexTransBody):
     """Translate an arXiv paper's LaTeX source, by section (or all)."""
     try:
-        sections = await translate_feat.translate_tex(
-            paper_id, section=body.section, language=body.language,
-            provider=body.provider, model=body.model,
-        )
+        with registry.usage_context("translate_tex", paper_id=paper_id):
+            sections = await translate_feat.translate_tex(
+                paper_id, section=body.section, language=body.language,
+                provider=body.provider, model=body.model,
+            )
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {"sections": sections}
@@ -215,9 +223,10 @@ async def autohighlight(paper_id: str, body: Override):
     if not store.get_paper(paper_id):
         raise HTTPException(404, "paper not found")
     try:
-        items = await highlight_feat.auto_highlight(
-            paper_id, provider=body.provider, model=body.model
-        )
+        with registry.usage_context("auto_highlight", paper_id=paper_id):
+            items = await highlight_feat.auto_highlight(
+                paper_id, provider=body.provider, model=body.model
+            )
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {"highlights": items}
@@ -239,44 +248,45 @@ async def chat(body: ChatBody):
         acc = []
         session_state: dict = {}
         try:
-            async with _serialize_chat(body.chat_id):
-                chat_record = store.get_chat(body.chat_id) if body.chat_id else None
-                should_auto_title = bool(
-                    chat_record
-                    and chat_record.get("title") == "Chat"
-                    and not store.chat_has_messages(body.chat_id)
-                )
-                async for delta in chat_feat.chat_stream(
-                    paper_id,
-                    messages,
-                    chat_id=body.chat_id,
-                    session_state=session_state,
-                    selection=body.selection,
-                    language=body.language,
-                    provider=body.provider,
-                    model=body.model,
-                ):
-                    acc.append(delta)
-                    yield f"data: {json.dumps({'delta': delta})}\n\n"
-
-                # Persist the transcript and the provider-session pointer in one
-                # transaction, but only after the provider completed cleanly.
-                if body.chat_id and messages:
-                    title = None
-                    if should_auto_title:
-                        title = chat_feat.summarize_chat_title(
-                            messages[-1]["content"], "".join(acc)
-                        )
-                    store.commit_chat_turn(
-                        body.chat_id,
-                        messages[-1]["content"],
-                        "".join(acc),
-                        provider=session_state.get("provider")
-                        or registry.resolve_provider_name(body.provider),
-                        provider_session_id=session_state.get("provider_session_id"),
-                        title=title,
-                        user_attachments=messages[-1].get("attachments", []),
+            with registry.usage_context("chat", paper_id=paper_id):
+                async with _serialize_chat(body.chat_id):
+                    chat_record = store.get_chat(body.chat_id) if body.chat_id else None
+                    should_auto_title = bool(
+                        chat_record
+                        and chat_record.get("title") == "Chat"
+                        and not store.chat_has_messages(body.chat_id)
                     )
+                    async for delta in chat_feat.chat_stream(
+                        paper_id,
+                        messages,
+                        chat_id=body.chat_id,
+                        session_state=session_state,
+                        selection=body.selection,
+                        language=body.language,
+                        provider=body.provider,
+                        model=body.model,
+                    ):
+                        acc.append(delta)
+                        yield f"data: {json.dumps({'delta': delta})}\n\n"
+
+                    # Persist the transcript and the provider-session pointer in one
+                    # transaction, but only after the provider completed cleanly.
+                    if body.chat_id and messages:
+                        title = None
+                        if should_auto_title:
+                            title = chat_feat.summarize_chat_title(
+                                messages[-1]["content"], "".join(acc)
+                            )
+                        store.commit_chat_turn(
+                            body.chat_id,
+                            messages[-1]["content"],
+                            "".join(acc),
+                            provider=session_state.get("provider")
+                            or registry.resolve_provider_name(body.provider),
+                            provider_session_id=session_state.get("provider_session_id"),
+                            title=title,
+                            user_attachments=messages[-1].get("attachments", []),
+                        )
         except Exception as e:  # surface errors to the client stream
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
         yield f"data: {json.dumps({'done': True})}\n\n"

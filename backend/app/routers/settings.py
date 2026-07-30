@@ -16,6 +16,7 @@ class SettingsPatch(BaseModel):
     output_language: str | None = None
     target_language: str | None = None
     providers: dict | None = None
+    feature_settings: dict | None = None
 
 
 @router.get("")
@@ -54,6 +55,8 @@ async def update_settings(body: SettingsPatch):
         patch["providers"] = cleaned
         for name in cleaned:
             registry.reset_status(name)
+    if body.feature_settings is not None:
+        patch["feature_settings"] = body.feature_settings
     config.save_config(patch)
     return {"config": config.public_config()}
 

@@ -96,6 +96,30 @@ CREATE TABLE IF NOT EXISTS cache (
     updated_at REAL,
     PRIMARY KEY (paper_id, key)
 );
+CREATE TABLE IF NOT EXISTS ai_usage (
+    id TEXT PRIMARY KEY,
+    task_type TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    model TEXT,
+    paper_id TEXT,
+    plugin_id TEXT,
+    prompt_tokens INTEGER NOT NULL DEFAULT 0,
+    completion_tokens INTEGER NOT NULL DEFAULT 0,
+    total_tokens INTEGER NOT NULL DEFAULT 0,
+    estimated INTEGER NOT NULL DEFAULT 0,
+    created_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_created_at ON ai_usage(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_task_type ON ai_usage(task_type);
+CREATE TABLE IF NOT EXISTS provider_sessions (
+    paper_id TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    content_fingerprint TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL,
+    PRIMARY KEY (paper_id, provider, content_fingerprint)
+);
 """
 
 
@@ -142,6 +166,153 @@ def init_db() -> None:
             con.execute(
                 "ALTER TABLE messages ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'"
             )
+
+
+# ---------------------------------------------------------------------------
+# AI usage accounting
+# ---------------------------------------------------------------------------
+def record_ai_usage(
+    *,
+    task_type: str,
+    provider: str,
+    model: str | None,
+    paper_id: str | None,
+    plugin_id: str | None,
+    prompt_tokens: int,
+    completion_tokens: int,
+    total_tokens: int,
+    estimated: bool,
+) -> dict[str, Any]:
+    """Persist a single completed provider invocation.
+
+    ``estimated`` is intentionally stored alongside the count: subscription
+    CLIs can omit usage entirely, so estimates must never be confused with an
+    API/provider-reported total.
+    """
+    record = {
+        "id": _uid(),
+        "task_type": task_type,
+        "provider": provider,
+        "model": model,
+        "paper_id": paper_id,
+        "plugin_id": plugin_id,
+        "prompt_tokens": max(0, int(prompt_tokens)),
+        "completion_tokens": max(0, int(completion_tokens)),
+        "total_tokens": max(0, int(total_tokens)),
+        "estimated": bool(estimated),
+        "created_at": _now(),
+    }
+    with _conn() as con:
+        con.execute(
+            """
+            INSERT INTO ai_usage (
+                id, task_type, provider, model, paper_id, plugin_id,
+                prompt_tokens, completion_tokens, total_tokens, estimated, created_at
+            ) VALUES (
+                :id, :task_type, :provider, :model, :paper_id, :plugin_id,
+                :prompt_tokens, :completion_tokens, :total_tokens, :estimated, :created_at
+            )
+            """,
+            record,
+        )
+    return record
+
+
+def ai_usage_summary(
+    *, paper_id: str | None = None, task_type: str | None = None, limit: int = 50
+) -> dict[str, Any]:
+    """Return aggregate and recent completed AI-invocation usage records."""
+    clauses: list[str] = []
+    params: list[Any] = []
+    if paper_id:
+        clauses.append("paper_id = ?")
+        params.append(paper_id)
+    if task_type:
+        clauses.append("task_type = ?")
+        params.append(task_type)
+    where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+    aggregate = """
+        COUNT(*) AS tasks,
+        COALESCE(SUM(prompt_tokens), 0) AS prompt_tokens,
+        COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
+        COALESCE(SUM(total_tokens), 0) AS total_tokens,
+        COALESCE(AVG(total_tokens), 0) AS average_total_tokens,
+        COALESCE(SUM(estimated), 0) AS estimated_tasks
+    """
+    with _conn() as con:
+        total = dict(con.execute(f"SELECT {aggregate} FROM ai_usage{where}", params).fetchone())
+        by_task = [
+            dict(row)
+            for row in con.execute(
+                f"SELECT task_type, {aggregate} FROM ai_usage{where} "
+                "GROUP BY task_type ORDER BY total_tokens DESC, task_type ASC",
+                params,
+            ).fetchall()
+        ]
+        recent = [
+            dict(row)
+            for row in con.execute(
+                f"SELECT * FROM ai_usage{where} ORDER BY created_at DESC LIMIT ?",
+                [*params, max(1, min(int(limit), 200))],
+            ).fetchall()
+        ]
+    for row in [total, *by_task]:
+        row["estimated_tasks"] = int(row["estimated_tasks"])
+        row["average_total_tokens"] = round(float(row["average_total_tokens"]), 1)
+    return {"total": total, "by_task": by_task, "recent": recent}
+
+
+# ---------------------------------------------------------------------------
+# Shared per-paper provider sessions
+# ---------------------------------------------------------------------------
+def get_provider_session(
+    paper_id: str, provider: str, content_fingerprint: str
+) -> dict[str, Any] | None:
+    with _conn() as con:
+        row = con.execute(
+            """
+            SELECT paper_id,provider,content_fingerprint,session_id,created_at,updated_at
+            FROM provider_sessions
+            WHERE paper_id=? AND provider=? AND content_fingerprint=?
+            """,
+            (paper_id, provider, content_fingerprint),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def set_provider_session(
+    paper_id: str,
+    provider: str,
+    content_fingerprint: str,
+    session_id: str,
+) -> dict[str, Any]:
+    now = _now()
+    with _conn() as con:
+        con.execute(
+            """
+            INSERT INTO provider_sessions (
+                paper_id,provider,content_fingerprint,session_id,created_at,updated_at
+            ) VALUES (?,?,?,?,?,?)
+            ON CONFLICT(paper_id,provider,content_fingerprint) DO UPDATE SET
+                session_id=excluded.session_id,
+                updated_at=excluded.updated_at
+            """,
+            (paper_id, provider, content_fingerprint, session_id, now, now),
+        )
+    return get_provider_session(paper_id, provider, content_fingerprint) or {}
+
+
+def delete_provider_session(
+    paper_id: str, provider: str, content_fingerprint: str
+) -> None:
+    with _conn() as con:
+        con.execute(
+            """
+            DELETE FROM provider_sessions
+            WHERE paper_id=? AND provider=? AND content_fingerprint=?
+            """,
+            (paper_id, provider, content_fingerprint),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -237,7 +408,7 @@ def delete_paper(paper_id: str) -> None:
     with _conn() as con:
         for t in (
             "papers", "highlights", "drawings", "personal_notes",
-            "chats", "messages", "refs", "cache",
+            "chats", "messages", "refs", "cache", "provider_sessions",
         ):
             col = "id" if t == "papers" else "paper_id"
             if t == "messages":

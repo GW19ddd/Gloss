@@ -126,17 +126,51 @@ export interface PluginManifest {
   tab_name: string;
   tab_name_zh?: string;
   contributes: {
-    paper_sidebar: {
+    paper_sidebar?: {
       tab_name: string;
       tab_name_zh?: string;
       icon: string;
     };
+    configuration?: {
+      title?: string;
+      properties?: Record<string, PluginConfigurationProperty>;
+    };
   };
+  agent?: PluginAgent;
   permissions: string[];
+  requirements: string[];
   prompt: string;
   output: "markdown";
   builtin: boolean;
   installed?: boolean;
+}
+export interface PluginAgent {
+  name?: string;
+  name_zh?: string;
+  icon?: string;
+  messages?: Record<string, string | { en?: string; zh?: string }>;
+}
+export interface PluginConfigurationProperty {
+  type?: "boolean" | "string" | "number" | "integer" | "array";
+  title?: string;
+  title_zh?: string;
+  description?: string;
+  description_zh?: string;
+  markdownDescription?: string;
+  default?: unknown;
+  enum?: Array<string | number>;
+  enumDescriptions?: string[];
+  markdownEnumDescriptions?: string[];
+  enumItemLabels?: string[];
+  items?: { type?: string };
+  minimum?: number;
+  maximum?: number;
+  order?: number;
+}
+export interface PluginRunResponse {
+  status: "ready" | "unavailable";
+  markdown: string;
+  reason: { code: string; requirement: string } | null;
 }
 export interface CoreExtension {
   id: string;
@@ -169,6 +203,50 @@ export interface PluginSnapshot {
   marketplace: PluginManifest[];
   installed: PluginManifest[];
   coming_soon: ComingSoonExtension[];
+}
+export type AiTaskStatus =
+  | "queued"
+  | "running"
+  | "cancelling"
+  | "completed"
+  | "failed"
+  | "cancelled";
+export interface AiTaskAgent {
+  name?: string;
+  name_zh?: string;
+  icon?: string;
+  messages?: Record<string, string | { en?: string; zh?: string }>;
+}
+export interface AiTaskSnapshot {
+  id: string;
+  feature_id: string;
+  paper_id?: string | null;
+  status: AiTaskStatus;
+  progress: number;
+  stage?: string;
+  detail?: string;
+  agent?: AiTaskAgent | string | null;
+  result?: unknown;
+  error?: string | null;
+  created_at?: number | string;
+  started_at?: number | string | null;
+  updated_at?: number | string;
+}
+export interface CreateAiTaskRequest {
+  feature_id: string;
+  paper_id?: string;
+  refresh?: boolean;
+  language?: string;
+  input?: Record<string, unknown> | string;
+}
+export interface AiArtifactRequest {
+  feature_id: string;
+  paper_id: string;
+  language?: string;
+}
+export interface AiArtifactResponse {
+  found: boolean;
+  result?: unknown;
 }
 export interface Reference {
   id: string;
@@ -205,6 +283,32 @@ export interface ProviderTestResult {
   latency_ms?: number;
   reply?: string;
   error?: string;
+}
+export interface AiUsageAggregate {
+  tasks: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  average_total_tokens: number;
+  estimated_tasks: number;
+}
+export interface AiUsageRecord {
+  id: string;
+  task_type: string;
+  provider: string;
+  model: string | null;
+  paper_id: string | null;
+  plugin_id: string | null;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  estimated: boolean;
+  created_at: number;
+}
+export interface AiUsageSummary {
+  total: AiUsageAggregate;
+  by_task: (AiUsageAggregate & { task_type: string })[];
+  recent: AiUsageRecord[];
 }
 export interface Summary {
   tldr: string;
@@ -418,7 +522,26 @@ export const api = {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ refresh }),
-    }).then((r) => j<{ markdown: string }>(r)),
+    }).then((r) => j<PluginRunResponse>(r)),
+  createAiTask: (request: CreateAiTaskRequest) =>
+    fetch("/api/tasks", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(request),
+    }).then((r) => j<AiTaskSnapshot>(r)),
+  getAiTask: (id: string) =>
+    fetch(`/api/tasks/${encodeURIComponent(id)}`).then((r) => j<AiTaskSnapshot>(r)),
+  cancelAiTask: (id: string) =>
+    fetch(`/api/tasks/${encodeURIComponent(id)}`, { method: "DELETE" }).then((r) => j<AiTaskSnapshot>(r)),
+  getAiArtifact: (request: AiArtifactRequest) => {
+    const query = new URLSearchParams({
+      feature_id: request.feature_id,
+      paper_id: request.paper_id,
+    });
+    if (request.language) query.set("language", request.language);
+    return fetch(`/api/tasks/artifact?${query}`).then((r) => j<AiArtifactResponse>(r));
+  },
+  aiTaskEventsUrl: (id: string) => `/api/tasks/${encodeURIComponent(id)}/events`,
 
   getReferences: (id: string) =>
     fetch(`/api/papers/${id}/references`).then((r) => j<{ references: Reference[] }>(r)),
@@ -479,6 +602,14 @@ export const api = {
     fetch("/api/settings/status").then((r) =>
       j<{ provider_statuses: Record<string, ProviderConnectionStatus> }>(r),
     ),
+  getAiUsage: (opts: { paper_id?: string; task_type?: string; limit?: number } = {}) => {
+    const query = new URLSearchParams();
+    if (opts.paper_id) query.set("paper_id", opts.paper_id);
+    if (opts.task_type) query.set("task_type", opts.task_type);
+    if (opts.limit) query.set("limit", String(opts.limit));
+    const suffix = query.size ? `?${query.toString()}` : "";
+    return fetch(`/api/usage${suffix}`).then((r) => j<AiUsageSummary>(r));
+  },
   updateSettings: (patch: any) =>
     fetch("/api/settings", {
       method: "POST",

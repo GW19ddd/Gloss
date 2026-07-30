@@ -63,11 +63,12 @@ async def run_skill(body: RunSkillBody):
 
     async def gen():
         try:
-            async for delta in registry.stream(
-                system, [{"role": "user", "content": user}],
-                provider=body.provider, model=body.model,
-            ):
-                yield f"data: {json.dumps({'delta': delta})}\n\n"
+            with registry.usage_context("skill", paper_id=body.paper_id, plugin_id=body.skill_id):
+                async for delta in registry.stream(
+                    system, [{"role": "user", "content": user}],
+                    provider=body.provider, model=body.model,
+                ):
+                    yield f"data: {json.dumps({'delta': delta})}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
         yield f"data: {json.dumps({'done': True})}\n\n"

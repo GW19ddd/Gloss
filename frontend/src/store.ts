@@ -47,6 +47,7 @@ interface State {
   flash: { page: number; rects: [number, number, number, number][]; id: number } | null;
   toast: string | null;
   selectionAction: { kind: string; selection: Selection; id: number } | null;
+  settingsFocus: string | null;
 
   loadPapers: () => Promise<void>;
   loadImportJobs: () => Promise<void>;
@@ -55,6 +56,7 @@ interface State {
   openPaper: (id: string) => Promise<void>;
   closePaper: () => void;
   setTab: (t: string) => void;
+  openFeatureSettings: (featureId: string | null) => void;
   setUiLang: (l: "en" | "zh") => void;
   setScholarView: (v: { key: string | null; query: string }) => void;
   flashLocate: (page: number, rects: [number, number, number, number][]) => void;
@@ -107,6 +109,7 @@ export const useStore = create<State>((set, get) => ({
   flash: null,
   toast: null,
   selectionAction: null,
+  settingsFocus: null,
   scholarView: { key: null, query: "" },
 
   loadPapers: async () => {
@@ -219,6 +222,7 @@ export const useStore = create<State>((set, get) => ({
     view: "library", current: null, pages: null, highlights: [], drawings: [], chatAttachments: [], selection: null,
   }),
   setTab: (t) => set({ activeTab: t }),
+  openFeatureSettings: (featureId) => set({ activeTab: "settings", settingsFocus: featureId }),
   setUiLang: (l) => {
     localStorage.setItem("gloss.uiLang", l);
     set({ uiLang: l });

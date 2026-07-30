@@ -1,12 +1,14 @@
 import { useRef, useState } from "react";
 import type { PluginManifest } from "../api/client";
 import { api } from "../api/client";
+import { clearAiTasksForFeature } from "../api/aiTasks";
 import { useStore } from "../store";
 
 export function ExtensionsPanel() {
   const snapshot = useStore((s) => s.pluginSnapshot);
   const loadPlugins = useStore((s) => s.loadPlugins);
   const setTab = useStore((s) => s.setTab);
+  const openFeatureSettings = useStore((s) => s.openFeatureSettings);
   const notify = useStore((s) => s.notify);
   const uiLang = useStore((s) => s.uiLang);
   const [busy, setBusy] = useState<string | null>(null);
@@ -21,14 +23,14 @@ export function ExtensionsPanel() {
   const T = uiLang === "zh"
     ? {
         title: "插件市场", installed: "已安装", builtIn: "内置模块", market: "推荐插件", comingSoon: "即将推出",
-        install: "安装", uninstall: "卸载", open: "打开", import: "导入自定义插件",
+        install: "安装", uninstall: "卸载", open: "打开", settings: "设置", import: "导入自定义插件",
         developer: "插件 API", feedback: "提交需求", feedbackTitle: "想添加什么插件或功能？", feedbackDetail: "请描述使用场景、预期结果或参考链接", feedbackSend: "发送需求邮件", feedbackHint: "将通过本机默认邮件客户端发往 2651159710@qq.com。", feedbackNeedText: "请填写标题和说明。", apiVersion: "插件 API 版本", copyTemplate: "复制示例 manifest", copied: "已复制", schema: "打开 JSON Schema",
         safe: "插件采用声明式清单，只能在授权后读取当前论文并调用 AI，不执行任意脚本。",
         imported: "插件已安装", uninstalled: "插件已卸载", uninstallConfirm: "卸载后将移除插件入口，并清除该插件生成的缓存内容。确定卸载吗？", failed: "插件操作失败",
       }
     : {
         title: "Extension Marketplace", installed: "Installed", builtIn: "Built-in modules", comingSoon: "Coming soon",
-        market: "Featured extensions", install: "Install", uninstall: "Uninstall", open: "Open", developer: "Plugin API",
+        market: "Featured extensions", install: "Install", uninstall: "Uninstall", open: "Open", settings: "Settings", developer: "Plugin API",
         feedback: "Request an extension", feedbackTitle: "What should Gloss add?", feedbackDetail: "Describe the use case, expected output, or a reference link", feedbackSend: "Send request by email", feedbackHint: "Opens your default mail app addressed to 2651159710@qq.com.", feedbackNeedText: "Please add a title and description.",
         apiVersion: "Plugin API version", copyTemplate: "Copy sample manifest", copied: "Copied", schema: "Open JSON Schema",
         import: "Import custom plugin", safe: "Plugins use declarative manifests. They can read the current paper and call AI only with declared permissions; arbitrary scripts are not executed.",
@@ -55,6 +57,7 @@ export function ExtensionsPanel() {
     setError("");
     try {
       await api.uninstallPlugin(plugin.id);
+      clearAiTasksForFeature(`plugin:${plugin.id}`);
       setTab("extensions");
       await loadPlugins();
       notify(T.uninstalled);
@@ -140,6 +143,7 @@ export function ExtensionsPanel() {
         {source === "installed" || plugin.installed ? (
           <>
             <button onClick={() => setTab(`plugin:${plugin.id}`)}>{T.open}</button>
+            <button onClick={() => openFeatureSettings(`plugin:${plugin.id}`)}>{T.settings}</button>
             <button className="danger-ghost" disabled={busy === plugin.id} onClick={() => uninstall(plugin)}>
               {T.uninstall}
             </button>

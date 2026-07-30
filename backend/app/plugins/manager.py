@@ -20,6 +20,39 @@ from ..platform_support import read_utf8_text
 _ID = re.compile(r"^[a-z0-9][a-z0-9._-]{1,63}$")
 _VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][a-zA-Z0-9.-]+)?$")
 _ALLOWED_PERMISSIONS = {"paper:read", "ai:complete"}
+_REQUIREMENT_DEFINITIONS = {
+    "body_text": {"reason": "no_body_text"},
+    "formulas": {"reason": "no_formulas"},
+    "method_content": {"reason": "no_method_content"},
+    "claims_or_evidence": {"reason": "no_claims_or_evidence"},
+    "terms": {"reason": "no_terms"},
+    "figures_or_tables": {"reason": "no_figures_or_tables"},
+}
+_ALLOWED_REQUIREMENTS = set(_REQUIREMENT_DEFINITIONS)
+_AGENT_MESSAGE_STAGES = {
+    "default", "preparing", "reading", "thinking", "writing", "saving",
+}
+DEFAULT_AGENT = {
+    "name": "Research Assistant",
+    "name_zh": "研究助手",
+    "icon": "🔬",
+    "messages": {
+        "default": "Researching the paper",
+        "preparing": "Preparing the paper",
+        "reading": "Reading the paper",
+        "thinking": "Analyzing the evidence",
+        "writing": "Writing the result",
+        "saving": "Saving the result",
+    },
+}
+_CONFIG_TYPES = {"boolean", "string", "number", "integer", "array"}
+_CONFIG_SCHEMA_FIELDS = {
+    "type", "default", "description", "markdownDescription", "enum",
+    "enumDescriptions", "markdownEnumDescriptions", "enumItemLabels",
+    "minimum", "maximum", "minLength", "maxLength", "minItems", "maxItems",
+    "pattern", "format", "order", "editPresentation", "items",
+    "deprecationMessage", "markdownDeprecationMessage", "tags",
+}
 PLUGIN_API_VERSION = 1
 CONTRIBUTION_POINTS = [
     {
@@ -52,11 +85,39 @@ PLUGIN_TEMPLATE = {
     "author": "Your Name",
     "description": "Checks the evidence supplied for the paper's central claims.",
     "permissions": ["paper:read", "ai:complete"],
+    "requirements": ["body_text"],
+    "agent": {
+        "name": "Evidence Scout",
+        "icon": "🔎",
+        "messages": {
+            "reading": "Reading the paper's claims",
+            "thinking": "Checking the supporting evidence",
+            "writing": "Writing the claim review",
+        },
+    },
     "contributes": {
         "paper_sidebar": {
             "tab_name": "Claims",
             "icon": "🔎",
-        }
+        },
+        "configuration": {
+            "title": "Claim Checker",
+            "properties": {
+                "strictness": {
+                    "type": "string",
+                    "enum": ["balanced", "strict"],
+                    "default": "balanced",
+                    "description": "Controls how aggressively claims are challenged.",
+                    "order": 10,
+                },
+                "includeFollowUps": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Include proposed follow-up experiments.",
+                    "order": 20,
+                },
+            },
+        },
     },
     "prompt": "List the central claims and evaluate the evidence supplied for each one.",
 }
@@ -84,6 +145,29 @@ PLUGIN_MANIFEST_SCHEMA = {
             "uniqueItems": True,
             "items": {"enum": sorted(_ALLOWED_PERMISSIONS)},
         },
+        "requirements": {
+            "type": "array",
+            "uniqueItems": True,
+            "items": {"enum": sorted(_ALLOWED_REQUIREMENTS)},
+            "default": [],
+        },
+        "agent": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "name": {"type": "string", "maxLength": 40},
+                "name_zh": {"type": "string", "maxLength": 40},
+                "icon": {"type": "string", "maxLength": 8},
+                "messages": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        stage: {"type": "string", "maxLength": 100}
+                        for stage in sorted(_AGENT_MESSAGE_STAGES)
+                    },
+                },
+            },
+        },
         "contributes": {
             "type": "object",
             "additionalProperties": False,
@@ -97,7 +181,23 @@ PLUGIN_MANIFEST_SCHEMA = {
                         "tab_name_zh": {"type": "string", "maxLength": 24},
                         "icon": {"type": "string", "maxLength": 8},
                     },
-                }
+                },
+                "configuration": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "title": {"type": "string", "maxLength": 80},
+                        "properties": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "object",
+                                "additionalProperties": True,
+                                "required": ["type", "default"],
+                            },
+                        },
+                    },
+                    "required": ["properties"],
+                },
             },
         },
         "prompt": {"type": "string", "minLength": 1, "maxLength": 12000},
@@ -141,6 +241,7 @@ MARKETPLACE = [
         "tab_name": "Review",
         "tab_name_zh": "审阅",
         "permissions": ["paper:read", "ai:complete"],
+        "requirements": ["body_text", "claims_or_evidence"],
         "prompt": (
             "Write a rigorous critical review of the paper. Separate major strengths, "
             "unsupported or weakly supported claims, methodological risks, missing "
@@ -160,6 +261,7 @@ MARKETPLACE = [
         "tab_name": "Reproduce",
         "tab_name_zh": "复现",
         "permissions": ["paper:read", "ai:complete"],
+        "requirements": ["body_text", "method_content"],
         "prompt": (
             "Create an actionable reproducibility checklist for this paper. Include "
             "datasets, preprocessing, model details, objectives, hyperparameters, "
@@ -179,6 +281,7 @@ MARKETPLACE = [
         "tab_name": "Equations",
         "tab_name_zh": "公式",
         "permissions": ["paper:read", "ai:complete"],
+        "requirements": ["body_text", "formulas"],
         "prompt": (
             "Build a guided tour of the paper's important equations. Define every symbol, "
             "explain the intuition, connect each equation to the algorithm, and point out "
@@ -197,6 +300,7 @@ MARKETPLACE = [
         "tab_name": "Build",
         "tab_name_zh": "实现",
         "permissions": ["paper:read", "ai:complete"],
+        "requirements": ["body_text", "method_content"],
         "prompt": (
             "Create an implementation blueprint for this paper. Identify the inputs, "
             "outputs, data flow, model modules, loss functions, training loop, evaluation "
@@ -216,6 +320,7 @@ MARKETPLACE = [
         "tab_name": "Evidence",
         "tab_name_zh": "证据",
         "permissions": ["paper:read", "ai:complete"],
+        "requirements": ["body_text", "claims_or_evidence"],
         "prompt": (
             "Build a rigorous evidence table for the paper. For each important claim, list "
             "the supporting experiment, result, figure/table/section location, strength of "
@@ -234,6 +339,7 @@ MARKETPLACE = [
         "tab_name": "Glossary",
         "tab_name_zh": "术语",
         "permissions": ["paper:read", "ai:complete"],
+        "requirements": ["body_text", "terms"],
         "prompt": (
             "Create a compact glossary for this paper. Cover domain-specific terms, all "
             "important abbreviations, and mathematical symbols. Give a plain-language "
@@ -252,6 +358,7 @@ MARKETPLACE = [
         "tab_name": "Figures",
         "tab_name_zh": "图表",
         "permissions": ["paper:read", "ai:complete"],
+        "requirements": ["body_text", "figures_or_tables"],
         "prompt": (
             "Write a guided tour of the paper's figures and tables. For every important one, "
             "state the question it answers, how to read axes/rows/columns, the key result, "
@@ -270,6 +377,7 @@ MARKETPLACE = [
         "tab_name": "Present",
         "tab_name_zh": "汇报",
         "permissions": ["paper:read", "ai:complete"],
+        "requirements": ["body_text"],
         "prompt": (
             "Create an 8–12 slide presentation outline for this paper. For each slide, give "
             "a title, 2–4 speaking bullets, the most useful figure or table to show, and a "
@@ -288,6 +396,7 @@ MARKETPLACE = [
         "tab_name": "Plan",
         "tab_name_zh": "路线",
         "permissions": ["paper:read", "ai:complete"],
+        "requirements": ["body_text"],
         "prompt": (
             "Offer three practical reading routes for this paper: a 10-minute skim, a "
             "45-minute study session, and a reproduction-oriented deep read. For each route, "
@@ -363,6 +472,301 @@ def _clean_text(value: Any, field: str, *, maximum: int, required: bool = True) 
     return text
 
 
+def _value_matches_schema(value: Any, schema: dict[str, Any]) -> bool:
+    expected = schema.get("type")
+    if expected == "boolean":
+        matches = isinstance(value, bool)
+    elif expected == "string":
+        matches = isinstance(value, str)
+    elif expected == "integer":
+        matches = isinstance(value, int) and not isinstance(value, bool)
+    elif expected == "number":
+        matches = isinstance(value, (int, float)) and not isinstance(value, bool)
+    elif expected == "array":
+        matches = isinstance(value, list)
+        item_type = (schema.get("items") or {}).get("type")
+        if matches and item_type:
+            matches = all(_value_matches_schema(item, {"type": item_type}) for item in value)
+    else:
+        return False
+    if not matches:
+        return False
+    if "enum" in schema and value not in schema["enum"]:
+        return False
+    if isinstance(value, str):
+        if len(value) < int(schema.get("minLength", 0)):
+            return False
+        if len(value) > int(schema.get("maxLength", len(value))):
+            return False
+        if schema.get("pattern") and re.fullmatch(str(schema["pattern"]), value) is None:
+            return False
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if "minimum" in schema and value < schema["minimum"]:
+            return False
+        if "maximum" in schema and value > schema["maximum"]:
+            return False
+    if isinstance(value, list):
+        if len(value) < int(schema.get("minItems", 0)):
+            return False
+        if len(value) > int(schema.get("maxItems", len(value))):
+            return False
+    return True
+
+
+def _normalize_agent(raw: Any) -> dict[str, Any]:
+    if raw is None:
+        raw = {}
+    if not isinstance(raw, dict):
+        raise ValueError("plugin agent must be an object")
+    unsupported = set(raw) - {"name", "name_zh", "icon", "messages"}
+    if unsupported:
+        raise ValueError("unsupported plugin agent fields: " + ", ".join(sorted(unsupported)))
+    messages = raw.get("messages") or {}
+    if not isinstance(messages, dict):
+        raise ValueError("plugin agent messages must be an object")
+    unsupported_stages = set(messages) - _AGENT_MESSAGE_STAGES
+    if unsupported_stages:
+        raise ValueError(
+            "unsupported plugin agent message stages: " + ", ".join(sorted(unsupported_stages))
+        )
+    normalized_messages = dict(DEFAULT_AGENT["messages"])
+    for stage, message in messages.items():
+        normalized_messages[stage] = _clean_text(
+            message, f"agent.messages.{stage}", maximum=100,
+        )
+    return {
+        "name": _clean_text(
+            raw.get("name") or DEFAULT_AGENT["name"], "agent.name", maximum=40,
+        ),
+        "name_zh": _clean_text(
+            raw.get("name_zh") or DEFAULT_AGENT["name_zh"],
+            "agent.name_zh",
+            maximum=40,
+        ),
+        "icon": _clean_text(
+            raw.get("icon") or DEFAULT_AGENT["icon"], "agent.icon", maximum=8,
+        ),
+        "messages": normalized_messages,
+    }
+
+
+def _normalize_configuration(plugin_id: str, raw: Any) -> dict[str, Any]:
+    if raw is None:
+        return {"title": "", "properties": {}}
+    if not isinstance(raw, dict):
+        raise ValueError("plugin contributes.configuration must be an object")
+    unsupported = set(raw) - {"title", "properties"}
+    if unsupported:
+        raise ValueError(
+            "unsupported plugin configuration fields: " + ", ".join(sorted(unsupported))
+        )
+    properties = raw.get("properties") or {}
+    if not isinstance(properties, dict):
+        raise ValueError("plugin configuration properties must be an object")
+    normalized: dict[str, dict[str, Any]] = {}
+    relative_keys: list[str] = []
+    for original_key, property_schema in properties.items():
+        key = str(original_key).strip()
+        prefix = f"{plugin_id}."
+        if key.startswith(prefix):
+            key = key[len(prefix):]
+        if not key or key.startswith(".") or key.endswith(".") or ".." in key:
+            raise ValueError(f"invalid plugin configuration key: {original_key}")
+        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*", key):
+            raise ValueError(f"invalid plugin configuration key: {original_key}")
+        if key in normalized:
+            raise ValueError(f"duplicate plugin configuration key: {key}")
+        if not isinstance(property_schema, dict):
+            raise ValueError(f"plugin configuration {key} must be an object")
+        unsupported_schema = set(property_schema) - _CONFIG_SCHEMA_FIELDS
+        if unsupported_schema:
+            raise ValueError(
+                f"unsupported fields for plugin configuration {key}: "
+                + ", ".join(sorted(unsupported_schema))
+            )
+        schema = dict(property_schema)
+        expected = schema.get("type")
+        if expected not in _CONFIG_TYPES:
+            raise ValueError(f"unsupported type for plugin configuration {key}: {expected}")
+        if "default" not in schema:
+            raise ValueError(f"plugin configuration {key} requires a default")
+        for field in ("minLength", "maxLength", "minItems", "maxItems"):
+            if field in schema and (
+                not isinstance(schema[field], int)
+                or isinstance(schema[field], bool)
+                or schema[field] < 0
+            ):
+                raise ValueError(
+                    f"plugin configuration {key} {field} must be a non-negative integer"
+                )
+        for minimum_field, maximum_field in (
+            ("minLength", "maxLength"),
+            ("minItems", "maxItems"),
+        ):
+            if (
+                minimum_field in schema
+                and maximum_field in schema
+                and schema[minimum_field] > schema[maximum_field]
+            ):
+                raise ValueError(
+                    f"plugin configuration {key} has inconsistent "
+                    f"{minimum_field}/{maximum_field}"
+                )
+        for field in ("minimum", "maximum"):
+            if field in schema and (
+                not isinstance(schema[field], (int, float))
+                or isinstance(schema[field], bool)
+            ):
+                raise ValueError(
+                    f"plugin configuration {key} {field} must be a number"
+                )
+        if (
+            "minimum" in schema
+            and "maximum" in schema
+            and schema["minimum"] > schema["maximum"]
+        ):
+            raise ValueError(
+                f"plugin configuration {key} has inconsistent minimum/maximum"
+            )
+        if "pattern" in schema:
+            if not isinstance(schema["pattern"], str):
+                raise ValueError(
+                    f"plugin configuration {key} pattern must be a string"
+                )
+            try:
+                re.compile(schema["pattern"])
+            except re.error as error:
+                raise ValueError(
+                    f"plugin configuration {key} has an invalid pattern"
+                ) from error
+        if "order" in schema and (
+            not isinstance(schema["order"], int)
+            or isinstance(schema["order"], bool)
+        ):
+            raise ValueError(f"plugin configuration {key} order must be an integer")
+        if schema.get("editPresentation") not in (None, "multilineText"):
+            raise ValueError(
+                f"plugin configuration {key} has an unsupported editPresentation"
+            )
+        if expected == "array":
+            items = schema.get("items")
+            if not isinstance(items, dict) or items.get("type") not in {
+                "boolean", "string", "number", "integer",
+            }:
+                raise ValueError(
+                    f"plugin configuration {key} arrays require simple typed items"
+                )
+            if set(items) != {"type"}:
+                raise ValueError(
+                    f"plugin configuration {key} array items only support type"
+                )
+        if not _value_matches_schema(schema["default"], schema):
+            raise ValueError(f"plugin configuration {key} has an invalid default")
+        enum_values = schema.get("enum")
+        if enum_values is not None:
+            if not isinstance(enum_values, list) or not enum_values:
+                raise ValueError(f"plugin configuration {key} enum must be a non-empty list")
+            if any(not _value_matches_schema(value, {**schema, "enum": [value]}) for value in enum_values):
+                raise ValueError(f"plugin configuration {key} enum contains an invalid value")
+            for descriptions_key in (
+                "enumDescriptions", "markdownEnumDescriptions", "enumItemLabels",
+            ):
+                descriptions = schema.get(descriptions_key)
+                if descriptions is not None and (
+                    not isinstance(descriptions, list)
+                    or len(descriptions) != len(enum_values)
+                    or any(not isinstance(item, str) for item in descriptions)
+                ):
+                    raise ValueError(
+                        f"plugin configuration {key} {descriptions_key} must match enum"
+                    )
+        normalized[key] = schema
+        relative_keys.append(key)
+    for key in relative_keys:
+        if any(other != key and other.startswith(f"{key}.") for other in relative_keys):
+            raise ValueError(
+                f"plugin configuration key {key} cannot be a prefix of another key"
+            )
+    return {
+        "title": _clean_text(
+            raw.get("title"), "contributes.configuration.title",
+            maximum=80, required=False,
+        ),
+        "properties": normalized,
+    }
+
+
+def resolve_configuration(
+    manifest: dict[str, Any], overrides: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    configuration = (manifest.get("contributes") or {}).get("configuration") or {}
+    schemas = configuration.get("properties") or {}
+    provided = dict(overrides or {})
+    resolved: dict[str, Any] = {}
+    unknown = set(provided)
+    for key, schema in schemas.items():
+        qualified = f"{manifest['id']}.{key}"
+        if key in provided:
+            value = provided[key]
+            unknown.discard(key)
+        elif qualified in provided:
+            value = provided[qualified]
+            unknown.discard(qualified)
+        else:
+            value = schema["default"]
+        if not _value_matches_schema(value, schema):
+            raise ValueError(f"invalid value for plugin configuration {key}")
+        resolved[key] = value
+    if unknown:
+        raise ValueError(
+            "unknown plugin configuration values: " + ", ".join(sorted(unknown))
+        )
+    return resolved
+
+
+def _preflight_failure(manifest: dict[str, Any], parsed: dict[str, Any]) -> dict[str, str] | None:
+    """Return the first unmet manifest requirement without contacting an AI provider."""
+    text = str(parsed.get("full_text") or "").strip()
+    lowered = text.lower()
+    pages = parsed.get("pages") or []
+    has_formula = bool(re.search(
+        r"(?:[A-Za-zα-ωΑ-Ω][\wα-ωΑ-Ω]*(?:\s*\([^)]{1,40}\))?\s*"
+        r"(?:=|≈|≜|≤|≥|∈|∝|→|←|↦)\s*\S+|[∑∏∫√∀∃]|\\[\[(])",
+        text,
+    ))
+    has_method = bool(re.search(
+        r"\b(?:method(?:ology)?|algorithm|training|objective|loss function|"
+        r"hyperparameter|preprocessing|implementation|optimization|dataset)\b|"
+        r"(?:方法|算法|训练|目标函数|损失函数|超参数|预处理|实现|数据集)",
+        lowered,
+    ))
+    has_claims_or_evidence = bool(re.search(
+        r"\b(?:we (?:show|find|observe|demonstrate|propose)|results?|experiments?|"
+        r"evaluation|baseline|accuracy|f1|auc|table\s*\d+|figure\s*\d+)\b|"
+        r"(?:结果|实验|评估|基线|准确率|表\s*\d+|图\s*\d+)",
+        lowered,
+    ))
+    has_terms = len(set(re.findall(r"\b(?:[A-Z][A-Z0-9-]{1,}|[A-Za-z][A-Za-z-]{7,})\b", text))) >= 2
+    has_figures_or_tables = any(page.get("images") for page in pages) or bool(re.search(
+        r"\b(?:figure|fig\.|table)\s*\d+|(?:图|表)\s*\d+", lowered
+    ))
+    satisfied = {
+        "body_text": len(text) >= 160,
+        "formulas": has_formula,
+        "method_content": has_method,
+        "claims_or_evidence": has_claims_or_evidence,
+        "terms": has_terms,
+        "figures_or_tables": has_figures_or_tables,
+    }
+    for requirement in manifest.get("requirements", []):
+        if not satisfied[requirement]:
+            return {
+                "code": _REQUIREMENT_DEFINITIONS[requirement]["reason"],
+                "requirement": requirement,
+            }
+    return None
+
+
 def validate_manifest(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError("plugin manifest must be an object")
@@ -386,6 +790,15 @@ def validate_manifest(payload: dict[str, Any]) -> dict[str, Any]:
         raise ValueError(f"unsupported plugin permissions: {', '.join(sorted(unsupported))}")
     if "paper:read" not in permissions or "ai:complete" not in permissions:
         raise ValueError("analysis plugins require paper:read and ai:complete")
+    requirements = payload.get("requirements") or []
+    if not isinstance(requirements, list):
+        raise ValueError("plugin requirements must be a list")
+    requirements = list(dict.fromkeys(str(item) for item in requirements))
+    unsupported_requirements = set(requirements) - _ALLOWED_REQUIREMENTS
+    if unsupported_requirements:
+        raise ValueError(
+            "unsupported plugin requirements: " + ", ".join(sorted(unsupported_requirements))
+        )
 
     name = _clean_text(payload.get("name"), "name", maximum=80)
     name_zh = _clean_text(payload.get("name_zh"), "name_zh", maximum=80, required=False)
@@ -401,7 +814,7 @@ def validate_manifest(payload: dict[str, Any]) -> dict[str, Any]:
         }
     if not isinstance(raw_contributes, dict):
         raise ValueError("plugin contributes must be an object")
-    unsupported_contributions = set(raw_contributes) - {"paper_sidebar"}
+    unsupported_contributions = set(raw_contributes) - {"paper_sidebar", "configuration"}
     if unsupported_contributions:
         raise ValueError(
             "unsupported plugin contribution points: "
@@ -426,6 +839,10 @@ def validate_manifest(payload: dict[str, Any]) -> dict[str, Any]:
         "contributes.paper_sidebar.icon",
         maximum=8,
     )
+    configuration = _normalize_configuration(
+        plugin_id, raw_contributes.get("configuration"),
+    )
+    agent = _normalize_agent(payload.get("agent"))
 
     return {
         "api_version": PLUGIN_API_VERSION,
@@ -446,9 +863,12 @@ def validate_manifest(payload: dict[str, Any]) -> dict[str, Any]:
                 "tab_name": tab_name,
                 "tab_name_zh": tab_name_zh,
                 "icon": panel_icon,
-            }
+            },
+            "configuration": configuration,
         },
+        "agent": agent,
         "permissions": permissions,
+        "requirements": requirements,
         "prompt": _clean_text(payload.get("prompt"), "prompt", maximum=12000),
         "output": "markdown",
         "builtin": False,
@@ -541,6 +961,46 @@ def uninstall(plugin_id: str) -> None:
         pass
 
 
+def _plugin_cache_key(
+    manifest: dict[str, Any],
+    language: str,
+    configuration: dict[str, Any] | None,
+) -> tuple[str, dict[str, Any]]:
+    prompt_revision = hashlib.sha256(
+        manifest["prompt"].encode("utf-8")
+    ).hexdigest()[:12]
+    resolved_configuration = resolve_configuration(manifest, configuration)
+    settings_revision = hashlib.sha256(
+        json.dumps(
+            resolved_configuration, sort_keys=True, ensure_ascii=False,
+        ).encode("utf-8")
+    ).hexdigest()[:12]
+    return (
+        f"plugin:{manifest['id']}:{manifest['version']}:{prompt_revision}:"
+        f"{settings_revision}:{language}",
+        resolved_configuration,
+    )
+
+
+def get_cached_result(
+    paper_id: str,
+    plugin_id: str,
+    *,
+    language: str | None = None,
+    configuration: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Read a plugin result without running preflight or contacting a provider."""
+    manifest = get_installed(plugin_id)
+    if not manifest:
+        raise ValueError("plugin is not installed")
+    lang = language or output_language()
+    cache_key, _ = _plugin_cache_key(manifest, lang, configuration)
+    cached = store.cache_get(paper_id, cache_key)
+    if cached is None:
+        return None
+    return {"status": "ready", "reason": None, "markdown": cached}
+
+
 async def run_plugin(
     paper_id: str,
     plugin_id: str,
@@ -549,28 +1009,45 @@ async def run_plugin(
     language: str | None = None,
     provider: str | None = None,
     model: str | None = None,
-) -> str:
+    configuration: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     manifest = get_installed(plugin_id)
     if not manifest:
         raise ValueError("plugin is not installed")
     lang = language or output_language()
-    prompt_revision = hashlib.sha256(manifest["prompt"].encode("utf-8")).hexdigest()[:12]
-    cache_key = f"plugin:{plugin_id}:{manifest['version']}:{prompt_revision}:{lang}"
-    if not refresh:
-        cached = store.cache_get(paper_id, cache_key)
-        if cached:
-            return cached
+    cache_key, resolved_configuration = _plugin_cache_key(
+        manifest, lang, configuration,
+    )
     parsed = store.load_parsed(paper_id)
     if not parsed:
         raise ValueError("paper not parsed")
+    unavailable = _preflight_failure(manifest, parsed)
+    if unavailable:
+        return {"status": "unavailable", "reason": unavailable, "markdown": ""}
+
+    if not refresh:
+        cached = store.cache_get(paper_id, cache_key)
+        if cached is not None:
+            return {"status": "ready", "reason": None, "markdown": cached}
     paper_text = truncate_to_tokens(parsed.get("full_text", ""), 60000)
     instructions = manifest["prompt"].replace("{{language}}", lang)
+    settings_block = ""
+    if resolved_configuration:
+        settings_block = (
+            "\n\n=== PLUGIN SETTINGS ===\n"
+            + json.dumps(resolved_configuration, ensure_ascii=False, indent=2)
+        )
     system = (
         f"You are running the Gloss plugin '{manifest['name']}' version "
         f"{manifest['version']}. Follow its instructions faithfully, use only the "
         f"provided paper, and write entirely in {lang}. Return Markdown."
     )
-    user = f"=== PLUGIN INSTRUCTIONS ===\n{instructions}\n\n=== PAPER ===\n{paper_text}"
+    user = (
+        f"=== PLUGIN INSTRUCTIONS ===\n{instructions}{settings_block}"
+        f"\n\n=== PAPER ===\n{paper_text}"
+    )
     result = await text_complete(system, user, provider=provider, model=model)
+    if not get_installed(plugin_id):
+        raise ValueError("plugin was uninstalled while the task was running")
     store.cache_set(paper_id, cache_key, result)
-    return result
+    return {"status": "ready", "reason": None, "markdown": result}

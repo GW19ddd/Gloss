@@ -21,9 +21,34 @@ from ..platform_support import (
     subprocess_group_options,
     terminate_process_tree,
 )
-from .base import Message, Provider, render_transcript
+from .base import (
+    Message,
+    Provider,
+    ProviderSessionUnavailableError,
+    render_transcript,
+    runtime_option,
+)
 
 CLAUDE_SHORT = ("sonnet", "opus", "haiku", "fable")
+
+
+class ClaudeSessionUnavailableError(ProviderSessionUnavailableError):
+    """Raised when Claude Code can no longer resume a persisted session."""
+
+
+def _session_is_unavailable(detail: str) -> bool:
+    text = detail.lower()
+    return any(
+        marker in text
+        for marker in (
+            "session not found",
+            "no conversation found",
+            "no session found",
+            "could not find session",
+            "unknown session",
+            "invalid session id",
+        )
+    )
 
 
 def _sandbox_env() -> tuple[dict, str]:
@@ -49,7 +74,8 @@ def _timeout() -> float:
 
 
 def _effort() -> str:
-    return (load_config()["providers"]["local_claude"].get("effort") or "").strip()
+    configured = load_config()["providers"]["local_claude"].get("effort")
+    return (runtime_option("effort", configured) or "").strip()
 
 
 def _materialize_message_images(messages: list[Message]) -> tuple[str | None, list[str]]:
@@ -125,16 +151,57 @@ class LocalClaudeProvider(Provider):
     async def complete(
         self, system: str, messages: list[Message], model: str | None = None
     ) -> tuple[str, dict]:
+        text, usage, _ = await self._run_completion(
+            system,
+            messages,
+            model,
+            persist_session=False,
+        )
+        return text, usage
+
+    async def complete_session(
+        self,
+        system: str,
+        messages: list[Message],
+        model: str | None = None,
+        *,
+        session_id: str | None = None,
+    ) -> tuple[str, dict, str]:
+        """Create or resume a persisted Claude Code conversation."""
+        text, usage, resolved_session_id = await self._run_completion(
+            system,
+            messages,
+            model,
+            persist_session=True,
+            session_id=session_id,
+        )
+        if not resolved_session_id:
+            raise RuntimeError("claude CLI did not report a session id")
+        return text, usage, resolved_session_id
+
+    async def _run_completion(
+        self,
+        system: str,
+        messages: list[Message],
+        model: str | None,
+        *,
+        persist_session: bool,
+        session_id: str | None = None,
+    ) -> tuple[str, dict, str | None]:
         image_dir, image_paths = _materialize_message_images(messages)
         prompt = render_transcript(messages) + _image_prompt_suffix(image_paths)
         model = _pick_model(model)
         cmd = resolve_cli_command("claude") + [
             "-p",
             "--output-format", "json",
-            "--no-session-persistence",
             "--tools", "Read" if image_paths else "",
             "--model", model,
         ]
+        if persist_session:
+            if session_id:
+                cmd += ["--resume", session_id]
+        else:
+            cmd.append("--no-session-persistence")
         if image_dir:
             cmd += ["--add-dir", image_dir, "--permission-mode", "dontAsk"]
         if _effort():
@@ -168,12 +235,16 @@ class LocalClaudeProvider(Provider):
                 raise RuntimeError(f"claude CLI timed out after {_timeout()}s")
 
             if proc.returncode != 0:
-                raise RuntimeError(
-                    f"claude CLI exited {proc.returncode}: {err.decode()[:2000]}"
-                )
+                detail = (err + b"\n" + out).decode(errors="replace")[:4000]
+                if session_id and _session_is_unavailable(detail):
+                    raise ClaudeSessionUnavailableError(detail)
+                raise RuntimeError(f"claude CLI exited {proc.returncode}: {detail}")
             data = json.loads(out.decode())
             if data.get("is_error"):
-                raise RuntimeError(str(data.get("result", ""))[:2000])
+                detail = str(data.get("result", ""))[:2000]
+                if session_id and _session_is_unavailable(detail):
+                    raise ClaudeSessionUnavailableError(detail)
+                raise RuntimeError(detail)
             usage = data.get("usage", {}) or {}
             norm = {
                 "prompt_tokens": usage.get("input_tokens", 0)
@@ -182,7 +253,7 @@ class LocalClaudeProvider(Provider):
                 "completion_tokens": usage.get("output_tokens", 0),
             }
             norm["total_tokens"] = norm["prompt_tokens"] + norm["completion_tokens"]
-            return data.get("result", ""), norm
+            return data.get("result", ""), norm, data.get("session_id") or session_id
         finally:
             if proc is not None and proc.returncode is None:
                 await terminate_process_tree(proc)
