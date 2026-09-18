@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import mimetypes
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -32,6 +33,11 @@ from .routers import (
     tasks,
     usage,
 )
+
+# Windows often does not register the .mjs extension, so StaticFiles serves
+# pdfjs-dist's worker with the wrong MIME type and the browser refuses to load
+# the worker. Ensure JavaScript module workers are served correctly.
+mimetypes.add_type("text/javascript", ".mjs")
 
 logger = logging.getLogger(__name__)
 
