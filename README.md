@@ -16,8 +16,8 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/gloss-local"><img src="https://img.shields.io/npm/v/gloss-local?label=npm" alt="npm version" /></a>
-  <a href="https://github.com/computersniper/gloss/releases/latest"><img src="https://img.shields.io/github/v/release/computersniper/gloss?label=release" alt="GitHub release" /></a>
-  <a href="https://github.com/computersniper/gloss/actions/workflows/ci.yml"><img src="https://github.com/computersniper/gloss/actions/workflows/ci.yml/badge.svg" alt="CI status" /></a>
+  <a href="https://github.com/GW19ddd/Gloss/releases/latest"><img src="https://img.shields.io/github/v/release/GW19ddd/Gloss?label=release" alt="GitHub release" /></a>
+  <a href="https://github.com/GW19ddd/Gloss/actions/workflows/ci.yml"><img src="https://github.com/GW19ddd/Gloss/actions/workflows/ci.yml/badge.svg" alt="CI status" /></a>
 </p>
 
 <p align="center"><a href="https://computersniper.github.io/gloss-site/"><b>🌐 Visit the Gloss website</b></a></p>
@@ -105,14 +105,14 @@ contribution.
 Paste this into Claude Code or Codex:
 
 ```text
-Install and run https://github.com/computersniper/gloss on this computer. Use the easiest supported method for this OS, preserve existing Gloss data, and verify /api/health before giving me the local URL.
+Install and run https://github.com/GW19ddd/Gloss on this computer. Use the easiest supported method for this OS, preserve existing Gloss data, and verify /api/health before giving me the local URL.
 ```
 
 Gloss is available as a native Windows desktop app and as a local browser app on Windows, Linux, and macOS. Both keep the backend, papers, and generated results on your own machine.
 
 ### Windows desktop app
 
-Download [Gloss-windows-x64.exe](https://github.com/computersniper/gloss/releases/latest/download/Gloss-windows-x64.exe), then double-click it.
+Download [Gloss-windows-x64.exe](https://github.com/GW19ddd/Gloss/releases/latest/download/Gloss-windows-x64.exe), then double-click it.
 Gloss opens in its own desktop window, without a terminal or browser tab, and
 automatically selects a free local port.
 
@@ -120,11 +120,11 @@ automatically selects a free local port.
 
 Every tagged release includes a portable Windows desktop package and the npm
 package for the local browser app. Pick the supported path for your computer from the
-[latest release](https://github.com/computersniper/gloss/releases/latest):
+[latest release](https://github.com/GW19ddd/Gloss/releases/latest):
 
 | Platform | Start here |
 | --- | --- |
-| Windows | Download [Gloss-windows-x64.exe](https://github.com/computersniper/gloss/releases/latest/download/Gloss-windows-x64.exe) |
+| Windows | Download [Gloss-windows-x64.exe](https://github.com/GW19ddd/Gloss/releases/latest/download/Gloss-windows-x64.exe) |
 | Linux / macOS | Run the [local web app](#local-web-app--windows-linux-and-macos-with-npm-or-bun) with npm or Bun |
 
 The Windows downloads are standalone `.exe` files—there is nothing to unpack.
@@ -159,7 +159,7 @@ Debian / Ubuntu, install `python3-venv` if the first run asks for it:
 Requires Git, Node.js 20.19+, and Python 3.11+:
 
 ```bash
-git clone https://github.com/computersniper/gloss.git
+git clone https://github.com/GW19ddd/Gloss.git
 cd gloss
 npm run setup
 npm start

@@ -16,8 +16,8 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/gloss-local"><img src="https://img.shields.io/npm/v/gloss-local?label=npm" alt="npm 版本" /></a>
-  <a href="https://github.com/computersniper/gloss/releases/latest"><img src="https://img.shields.io/github/v/release/computersniper/gloss?label=release" alt="GitHub 版本" /></a>
-  <a href="https://github.com/computersniper/gloss/actions/workflows/ci.yml"><img src="https://github.com/computersniper/gloss/actions/workflows/ci.yml/badge.svg" alt="CI 状态" /></a>
+  <a href="https://github.com/GW19ddd/Gloss/releases/latest"><img src="https://img.shields.io/github/v/release/GW19ddd/Gloss?label=release" alt="GitHub 版本" /></a>
+  <a href="https://github.com/GW19ddd/Gloss/actions/workflows/ci.yml"><img src="https://github.com/GW19ddd/Gloss/actions/workflows/ci.yml/badge.svg" alt="CI 状态" /></a>
 </p>
 
 <p align="center"><a href="https://computersniper.github.io/gloss-site/"><b>🌐 访问 Gloss 主页</b></a></p>
@@ -101,23 +101,23 @@ React / PDF.js 的阅读器界面，并驱动一个大模型帮你速览、研�
 把下面这句话发给 Claude Code 或 Codex：
 
 ```text
-请在这台电脑上安装并运行 https://github.com/computersniper/gloss。选择当前系统最简单的安装方式，保留已有 Gloss 数据，确认 /api/health 正常后告诉我本地地址。
+请在这台电脑上安装并运行 https://github.com/GW19ddd/Gloss。选择当前系统最简单的安装方式，保留已有 Gloss 数据，确认 /api/health 正常后告诉我本地地址。
 ```
 
 Gloss 同时提供原生 Windows 桌面应用，以及可在 Windows、Linux、macOS 本地运行的浏览器网页版。两者的后端、论文与生成结果都保存在你自己的电脑上。
 
 ### Windows 桌面应用
 
-下载 [Gloss-windows-x64.exe](https://github.com/computersniper/gloss/releases/latest/download/Gloss-windows-x64.exe)，双击即可在独立桌面窗口中运行；不会显示命令行窗口，也不会打开浏览器标签页。如果默认端口被占用，Gloss 会自动选择可用端口。
+下载 [Gloss-windows-x64.exe](https://github.com/GW19ddd/Gloss/releases/latest/download/Gloss-windows-x64.exe)，双击即可在独立桌面窗口中运行；不会显示命令行窗口，也不会打开浏览器标签页。如果默认端口被占用，Gloss 会自动选择可用端口。
 
 ### 选择发布版本
 
 每个标签版本都会提供 Windows 便携桌面包，以及用于本地网页版的 npm 包。请在
-[最新 Release](https://github.com/computersniper/gloss/releases/latest) 中选择适合你电脑的方式：
+[最新 Release](https://github.com/GW19ddd/Gloss/releases/latest) 中选择适合你电脑的方式：
 
 | 平台 | 启动方式 |
 | --- | --- |
-| Windows | 下载 [Gloss-windows-x64.exe](https://github.com/computersniper/gloss/releases/latest/download/Gloss-windows-x64.exe) |
+| Windows | 下载 [Gloss-windows-x64.exe](https://github.com/GW19ddd/Gloss/releases/latest/download/Gloss-windows-x64.exe) |
 | Linux / macOS | 使用下一节 npm 或 Bun 启动本地网页版 |
 
 Windows 下载均为独立 `.exe`，无需解压。各平台的注意事项见
@@ -151,7 +151,7 @@ Linux 和 macOS 与上面完全使用同一组命令；无需原生 `.exe`、`.a
 需要 Git、Node.js 20.19+ 和 Python 3.11+：
 
 ```bash
-git clone https://github.com/computersniper/gloss.git
+git clone https://github.com/GW19ddd/Gloss.git
 cd gloss
 npm run setup
 npm start
