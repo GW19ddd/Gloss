@@ -11,6 +11,11 @@ const BRUSHES: Record<DrawingTool, { widths: number[]; defaultWidth: number }> =
   highlighter: { widths: [10, 18, 28], defaultWidth: 18 },
 };
 
+// Gloss renders its own highlight / note / ink layers on top of the canvas.
+// pdf.js would otherwise ALSO paint the annotations now embedded in the PDF
+// (annotationMode defaults to ENABLE), so every highlight would be drawn twice.
+const ANNOTATION_MODE_DISABLE = (pdfjsLib as any).AnnotationMode?.DISABLE ?? 0;
+
 function savedBrush(): DrawingTool {
   const value = localStorage.getItem("gloss.drawing.brush");
   return value === "pencil" || value === "highlighter" ? value : "pen";
@@ -194,7 +199,11 @@ export function PdfViewer() {
         canvas.style.height = `${vp.height}px`;
         const ctx = canvas.getContext("2d")!;
         try {
-          const task = page.render({ canvasContext: ctx, viewport: rvp });
+          const task = page.render({
+            canvasContext: ctx,
+            viewport: rvp,
+            annotationMode: ANNOTATION_MODE_DISABLE,
+          });
           renderTasksRef.current.push(task);
           await task.promise;
           if (textLayer) await renderTextLayer(page, vp, textLayer);

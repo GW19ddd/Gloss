@@ -4,6 +4,27 @@
 
 ---
 
+## Unreleased — 2026-09-19
+
+这一版让研读笔记能追溯回原文、自动高亮更好用，并把批注写回论文原始 PDF。
+*This round makes study notes traceable to the source, sharpens auto-highlighting, and writes annotations back into the paper's original PDF.*
+
+### 🔗 可追溯的研读笔记 / Traceable study notes
+- Deep Paper Note 的每个关键论断都带证据标签（`[E1]`、`[E2]`…），点击即跳转到 PDF 中的原句并闪烁定位。
+- 笔记底部列出全部证据：原句、说明与页码，点整行同样跳转；下载的 `.md` 会一并附上证据清单。
+- 证据是论文的**逐字原句**（PDF 才能定位到），说明则用你设置的回答语言；个别定位不到的会置灰，不会留下死链。
+
+### 🖍️ 自动高亮 / Auto-highlight
+- 每条高亮的说明改用你设置的**回答语言**（如中文），不再出现英文解释。
+- 类别名做了归一化（中英文别名都映射到同一种颜色），侧栏**按类别分组**折叠展示，不再是一长串散乱条目。
+- 自动高亮改为**下划线**样式，避免大面积色块盖住正文。
+
+### ✍️ 批注写回原始 PDF / Annotations in the original PDF
+- 高亮可同步为**标准 PDF 批注**（`/T = "Gloss"`），采用增量保存，不动原有内容与第三方批注。
+- 可关联论文的原始文件（自动查找 Zotero 存储目录，或手动指定路径），这样 Acrobat / Preview / Zotero 里也能看到 Gloss 的高亮。
+
+---
+
 ## v1.0.2 — 2026-07-30
 
 这一版让论文分析任务更透明、更可控，并进一步完善了插件市场、独立设置与本地发布体验。

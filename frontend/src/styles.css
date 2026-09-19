@@ -345,6 +345,23 @@ button.primary { background: var(--accent); color: var(--on-accent); border: non
 .markdown code { background: var(--bg); padding: 1px 5px; border-radius: 4px; }
 .markdown table { border-collapse: collapse; }
 .markdown td, .markdown th { border: 1px solid var(--border); padding: 4px 8px; }
+/* Deep Paper Note: inline [E1] evidence pills + the evidence trail under the note. */
+.notes-doc .ev-ref {
+  display: inline-block; font-size: 11px; font-weight: 600; text-decoration: none; cursor: pointer;
+  color: var(--accent); background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 999px; padding: 0 6px; margin: 0 2px; vertical-align: 1px;
+}
+.notes-doc .ev-ref:hover { background: var(--accent); color: var(--on-accent); }
+.ev-list { margin-top: 18px; border-top: 1px solid var(--border); padding-top: 10px; }
+.ev-list h5 { margin: 0 0 8px; font-size: 12px; color: var(--fg-dim); }
+.ev-item { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; padding: 6px; border-radius: 6px; cursor: pointer; }
+.ev-item:hover { background: var(--bg3); }
+.ev-item.disabled { opacity: 0.55; cursor: default; }
+.ev-item.disabled:hover { background: none; }
+.ev-badge { flex: 0 0 auto; font-weight: 600; font-size: 11px; color: var(--accent); }
+.ev-quote { flex: 1; color: var(--fg-dim); }
+.ev-why { color: var(--fg); opacity: 0.8; }
+.ev-page { flex: 0 0 auto; color: var(--fg-dim); font-size: 11px; }
 
 .summary h4 { font-size: 15px; color: var(--accent); }
 .summary h5 { font-size: 13px; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.05em; }
@@ -395,6 +412,42 @@ button.primary { background: var(--accent); color: var(--on-accent); border: non
 .hl-text { flex: 1; cursor: pointer; line-height: 1.4; }
 .hl-page { color: var(--fg-dim); font-size: 11px; margin-right: 4px; }
 .hl-note { color: var(--fg-dim); }
+.hl-pdf {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.4px; margin-right: 4px;
+  padding: 1px 4px; border-radius: 3px; vertical-align: 1px;
+  background: var(--bg3); color: var(--accent2); border: 1px solid var(--border);
+}
+.hl-target { border-bottom: 1px solid var(--border); padding: 6px 0 8px; font-size: 12px; }
+.hl-target-head { display: flex; align-items: center; gap: 6px; }
+.hl-target-head button { margin-left: auto; }
+.hl-target-path {
+  margin-top: 4px; color: var(--fg-dim); font-size: 11px; word-break: break-all;
+  max-height: 3.2em; overflow: hidden;
+}
+.hl-target-warn { margin-top: 4px; color: var(--danger); font-size: 11px; }
+.hl-target-form { margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }
+.hl-target-form input {
+  width: 100%; box-sizing: border-box; border: 1px solid var(--border);
+  border-radius: 6px; background: var(--bg2); color: var(--fg); padding: 5px 8px; font-size: 12px;
+}
+.hl-target-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.hl-searched { color: var(--fg-dim); font-size: 10px; word-break: break-all; }
+.hl-candidate {
+  border: 1px solid var(--border); border-radius: 6px; padding: 5px 7px;
+  background: var(--bg2); display: flex; flex-direction: column; gap: 2px;
+}
+.hl-candidate:hover { border-color: var(--accent); }
+.hl-candidate-name { font-weight: 500; }
+.hl-candidate-path { color: var(--fg-dim); font-size: 10px; word-break: break-all; }
+.hl-group { margin-bottom: 4px; }
+.hl-group-head {
+  display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px;
+  padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg2);
+}
+.hl-group-head:hover { border-color: var(--accent); }
+.hl-group-name { flex: 1; font-weight: 500; }
+.hl-count { font-size: 10px; color: var(--fg-dim); background: var(--bg3); border-radius: 8px; padding: 0 6px; }
+.hl-chev { color: var(--fg-dim); font-size: 10px; }
 .tag { font-size: 10px; background: var(--bg3); border-radius: 4px; padding: 1px 5px; margin-right: 4px; text-transform: uppercase; color: var(--accent2); }
 .x { background: none; border: none; color: var(--fg-dim); font-size: 15px; }
 .x:hover { color: var(--danger); }

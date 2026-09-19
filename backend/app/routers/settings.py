@@ -12,6 +12,8 @@ router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 class SettingsPatch(BaseModel):
     confirm_exit: bool | None = None
+    sync_highlights_to_pdf: bool | None = None
+    source_pdf_dirs: list[str] | None = None
     provider: str | None = None
     output_language: str | None = None
     target_language: str | None = None
@@ -38,6 +40,10 @@ async def update_settings(body: SettingsPatch):
     patch: dict = {}
     if body.confirm_exit is not None:
         patch["confirm_exit"] = body.confirm_exit
+    if body.sync_highlights_to_pdf is not None:
+        patch["sync_highlights_to_pdf"] = body.sync_highlights_to_pdf
+    if body.source_pdf_dirs is not None:
+        patch["source_pdf_dirs"] = [str(d) for d in body.source_pdf_dirs]
     if body.provider:
         patch["provider"] = body.provider
     if body.output_language:

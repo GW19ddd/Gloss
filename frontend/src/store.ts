@@ -77,6 +77,7 @@ interface State {
   removeChatAttachment: (id: string) => void;
   clearChatAttachments: () => void;
   addUserHighlight: (color?: string, note?: string) => Promise<void>;
+  syncHighlightsToPdf: () => Promise<number>;
 }
 
 export const useStore = create<State>((set, get) => ({
@@ -359,7 +360,7 @@ export const useStore = create<State>((set, get) => ({
     const cur = get().current;
     const sel = get().selection;
     if (!cur || !sel) return;
-    await api.addHighlight(cur.id, {
+    const saved = await api.addHighlight(cur.id, {
       page: sel.page,
       rects: sel.rects,
       text: sel.text,
@@ -368,6 +369,22 @@ export const useStore = create<State>((set, get) => ({
       kind: "user",
     });
     await get().refreshHighlights();
-    get().notify("Highlight saved");
+    get().notify(
+      saved?.pdf_xref
+        ? (get().uiLang === "zh" ? "标注已保存并写入 PDF" : "Highlight saved and written into the PDF")
+        : "Highlight saved",
+    );
+  },
+  syncHighlightsToPdf: async () => {
+    const cur = get().current;
+    if (!cur) return 0;
+    const result = await api.syncHighlightsToPdf(cur.id);
+    set({ highlights: result.highlights || [] });
+    get().notify(
+      get().uiLang === "zh"
+        ? `已把 ${result.written}/${result.total} 条标注写入 PDF`
+        : `Wrote ${result.written}/${result.total} highlights into the PDF`,
+    );
+    return result.embedded || 0;
   },
 }));

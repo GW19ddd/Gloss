@@ -108,6 +108,11 @@ PORT = int(os.environ.get("GLOSS_PORT", "8010"))
 DEFAULT_CONFIG: dict[str, Any] = {
     # desktop app: warn before closing because in-flight work is interrupted
     "confirm_exit": True,
+    # also write every highlight into the PDF file as a native PDF annotation
+    "sync_highlights_to_pdf": True,
+    # extra directories searched when auto-locating a paper's original PDF
+    # (Zotero's storage folder is always checked)
+    "source_pdf_dirs": [],
     # active LLM provider: "local_claude" | "anthropic" | "openai"
     "provider": "local_claude",
     # language the AI ANSWERS in — summaries, explanations, chat, highlight notes

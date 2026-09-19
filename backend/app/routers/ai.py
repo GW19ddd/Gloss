@@ -129,13 +129,13 @@ async def notes(paper_id: str, body: SummarizeBody):
         raise HTTPException(404, "paper not found")
     try:
         with registry.usage_context("notes", paper_id=paper_id):
-            md = await notes_feat.build_notes(
+            note = await notes_feat.build_notes(
                 paper_id, language=body.language, refresh=body.refresh,
                 provider=body.provider, model=body.model,
             )
     except ValueError as e:
         raise HTTPException(400, str(e))
-    return {"markdown": md}
+    return note if isinstance(note, dict) else {"markdown": note, "evidence": []}
 
 
 @router.post("/explain")

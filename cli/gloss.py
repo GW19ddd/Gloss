@@ -5,6 +5,7 @@ Usage:
   gloss serve                 # start the web app (prints URL)
   gloss open <pdf|arxiv|doi>  # import + serve + open browser
   gloss import <pdf|arxiv|doi>
+  gloss link <id|pdf> [<pdf>] # write annotations into the original PDF
   gloss ls                    # list library
   gloss summarize <id|pdf|arxiv>
   gloss chat <id>             # interactive terminal chat (claude-style)
@@ -27,6 +28,7 @@ from app import config  # noqa: E402
 from app.features import chat as chat_feat  # noqa: E402
 from app.features import summarize as sum_feat  # noqa: E402
 from app.library import importers, service, store  # noqa: E402
+from app.pdf import annot_writer  # noqa: E402
 from app.skills import loader as skill_loader  # noqa: E402
 
 
@@ -35,7 +37,12 @@ def _add_from_source(src: str) -> dict:
     store.init_db()
     p = Path(src)
     if p.exists() and p.suffix.lower() == ".pdf":
-        return service.create_from_pdf_bytes(p.read_bytes(), {"source": "upload", "title": p.stem})
+        # Remember where the original lives so annotations can be written
+        # back into it (instead of only into Gloss's internal copy).
+        return service.create_from_pdf_bytes(
+            p.read_bytes(),
+            {"source": "upload", "title": p.stem, "source_pdf": str(p.resolve())},
+        )
     meta, pdf = asyncio.run(importers.import_source({"query": src}))
     return service.create_from_pdf_bytes(pdf, meta)
 
@@ -72,6 +79,40 @@ def cmd_open(args):
 def cmd_import(args):
     paper = _add_from_source(args.source)
     print(f"imported: {paper['id']}  {paper['title']!r}  ({paper['n_pages']}p)")
+
+
+def cmd_link(args):
+    """Point a paper at its original PDF so annotations are written into it."""
+    store.init_db()
+    paper = _resolve_paper(args.paper)
+
+    if args.clear:
+        store.clear_highlight_xrefs(paper["id"])
+        store.set_paper_source_pdf(paper["id"], None)
+        print(f"unlinked — annotations now go to Gloss's own copy")
+        return
+
+    if not args.path:
+        info = annot_writer.target_info(paper["id"])
+        if info["is_original"]:
+            print(f"original: {info['path']}")
+        elif info["linked_missing"]:
+            print(f"linked original is missing: {info['linked_path']}")
+        else:
+            print("no original linked — annotations go to Gloss's own copy")
+        return
+
+    path = Path(args.path).expanduser().resolve()
+    if not path.is_file() or path.suffix.lower() != ".pdf":
+        raise SystemExit(f"not a PDF file: {path}")
+    if path == store.pdf_path(paper["id"]).resolve():
+        raise SystemExit("that is Gloss's own working copy, not the original")
+
+    store.set_paper_source_pdf(paper["id"], str(path))
+    store.clear_highlight_xrefs(paper["id"])
+    result = annot_writer.sync_paper(paper["id"])
+    print(f"linked original: {path}")
+    print(f"  wrote {result['written']}/{result['total']} highlights into the PDF")
 
 
 def cmd_ls(args):
@@ -139,6 +180,12 @@ def main():
     o = sub.add_parser("open"); o.add_argument("source"); o.set_defaults(fn=cmd_open)
     i = sub.add_parser("import"); i.add_argument("source"); i.set_defaults(fn=cmd_import)
     sub.add_parser("ls").set_defaults(fn=cmd_ls)
+
+    lk = sub.add_parser("link", help="write annotations into the paper's original PDF")
+    lk.add_argument("paper")
+    lk.add_argument("path", nargs="?", help="absolute path of the original PDF")
+    lk.add_argument("--clear", action="store_true", help="unlink the original")
+    lk.set_defaults(fn=cmd_link)
 
     s = sub.add_parser("summarize"); s.add_argument("source")
     s.add_argument("--lang", default=None); s.set_defaults(fn=cmd_summarize)

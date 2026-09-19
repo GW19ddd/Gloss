@@ -69,14 +69,14 @@ React / PDF.js 的阅读器界面，并驱动一个大模型帮你速览、研�
 |---|---|
 | 📖 **PDF 阅读器** | 基于 PDF.js，带真正可选中的文本层；选中文字即弹出操作（Explain / Translate / 加入会话 / 高亮） |
 | 🧠 **速览 Summary** | 一键生成 TL;DR + 问题 / 方法 / 结果 / 创新点 / 局限 |
-| 📝 **研读笔记 Notes** | 结构化精读笔记，可 **一键复制** 或 **下载 `.md`** |
+| 📝 **研读笔记 Notes** | 结构化精读笔记，关键论断带 **可点击的原文证据标签**，一点即跳转到 PDF 中的原句；可 **一键复制** 或 **下载 `.md`** |
 | 🗺️ **思维导图 Mind Map** | 交互式 React Flow 导图：缩放、展开 / 折叠、点击节点看该节点的摘要与相互连接 |
 | 💬 **对话 Chat** | 像同事一样提问 —— 基于全篇 **BM25 检索（RAG）** 作答，支持**持久化 Codex 会话**、自动且可编辑的标题、流式输出与多会话 |
 | 💡 **解释 Explain** | 选中一段公式 / 术语 / 表格，一次性解释清楚；数学用 **KaTeX** 渲染 |
 | 🌐 **翻译 Translate** | **逐句翻译**、结果 **持久缓存**、**跨页范围复用**；默认只显示中文，可切换 **显示原文**；**点击译文可在 PDF 中闪烁定位**；arXiv 论文可 **直接翻译 LaTeX 源**，不漏文本 |
 | 📐 **arXiv LaTeX** | **TeX 源码标签**：读取论文 LaTeX 源（精确、无提取损失），并可从源翻译 |
-| 🖍️ **自动高亮 Auto-highlight** | AI 按类别挑出关键句，并 **锚定到 PDF 原文位置** 标色 |
-| ✍️ **批注 Annotations** | 个人笔记、彩色高亮、铅笔、写字笔、荧光笔与橡皮擦，全部锚定在页面并本地保存 |
+| 🖍️ **自动高亮 Auto-highlight** | AI 按类别挑出关键句，**锚定到 PDF 原文位置** 并按类别着色（下划线，不遮挡原文）；每条都带**你所选回答语言的说明**，侧栏**按类别分组**查看 |
+| ✍️ **批注 Annotations** | 个人笔记、彩色高亮、铅笔、写字笔、荧光笔与橡皮擦，全部锚定在页面并本地保存；高亮可**同步写回论文原始 PDF**（如 Zotero 附件），在 Acrobat / Preview / Zotero 中同样可见 |
 | 📎 **套索加入对话** | 在 PDF 上自由圈选区域，预览截图后直接作为附件加入 Chat |
 | 🔗 **参考文献 References** | 解析文末参考文献，经 **Crossref / arXiv** 补全，**每条可点击跳转** |
 | 🔭 **学术搜索 Scholar** | 通过 **Semantic Scholar / arXiv** 找相关论文，一键 **导入** |
@@ -233,7 +233,7 @@ ssh -N -L 8010:127.0.0.1:8010 -p <SSH端口> user@server
 ```
 backend/          FastAPI（一个进程挂载所有 /api/*，并托管已构建的前端 SPA）
   app/providers/  local_claude · local_codex · anthropic · openai · registry（LLM 抽象层）
-  app/pdf/        PyMuPDF 解析（文本块 + bbox）+ 结构启发式（章节/引用/分句）
+  app/pdf/        PyMuPDF 解析（文本块 + bbox）+ 结构启发式（章节/引用/分句）；批注同步回原始 PDF（annot_writer · original_finder）
   app/features/   summarize · explain · translate · chat(RAG) · highlight · notes · mindmap · citations
   app/search/     scholar 检索 / 推荐（Semantic Scholar / arXiv）
   app/skills/     发现并运行 Claude/Codex 的 SKILL.md 技能

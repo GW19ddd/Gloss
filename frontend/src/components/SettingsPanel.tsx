@@ -86,6 +86,8 @@ export function SettingsPanel() {
     try {
       await api.updateSettings({
         confirm_exit: cfg.confirm_exit !== false,
+        sync_highlights_to_pdf: cfg.sync_highlights_to_pdf !== false,
+        source_pdf_dirs: cfg.source_pdf_dirs || [],
         provider: cfg.provider,
         output_language: cfg.output_language,
         target_language: cfg.target_language,
@@ -168,6 +170,27 @@ export function SettingsPanel() {
         />
         <span>{uiLang === "zh" ? "关闭应用时显示退出提醒" : "Show a confirmation before quitting the app"}</span>
       </label>
+
+      <label>PDF annotations / PDF 批注</label>
+      <label className="setting-toggle">
+        <input
+          type="checkbox"
+          checked={cfg.sync_highlights_to_pdf !== false}
+          onChange={(event) => setCfg({ ...cfg, sync_highlights_to_pdf: event.target.checked })}
+        />
+        <span>{uiLang === "zh" ? "标注时同步写入 PDF 文件本身（其他阅读器也能看到）" : "Write highlights into the PDF file itself (visible in other readers)"}</span>
+      </label>
+
+      <label>{uiLang === "zh" ? "原件搜索目录（逗号分隔，自动查找 PDF 原件时使用）" : "Directories searched when locating a paper's original PDF (comma separated)"}</label>
+      <input
+        value={(cfg.source_pdf_dirs || []).join(", ")}
+        placeholder="C:\Users\me\Zotero\storage"
+        onChange={(event) => setCfg({
+          ...cfg,
+          source_pdf_dirs: event.target.value.split(",").map((d) => d.trim()).filter(Boolean),
+        })}
+        onBlur={() => save(false)}
+      />
 
       <label>Active AI provider</label>
       <select value={cfg.provider} onChange={(e) => setCfg({ ...cfg, provider: e.target.value })}>

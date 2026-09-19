@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS papers (
     doi TEXT,
     n_pages INTEGER,
     tags TEXT DEFAULT '[]',
+    source_pdf TEXT,
     added_at REAL
 );
 CREATE TABLE IF NOT EXISTS highlights (
@@ -41,6 +42,8 @@ CREATE TABLE IF NOT EXISTS highlights (
     text TEXT,
     note TEXT,
     kind TEXT,
+    style TEXT NOT NULL DEFAULT 'highlight',
+    pdf_xref INTEGER,
     created_at REAL
 );
 CREATE TABLE IF NOT EXISTS drawings (
@@ -145,6 +148,23 @@ def _conn() -> Iterator[sqlite3.Connection]:
 def init_db() -> None:
     with _conn() as con:
         con.executescript(_SCHEMA)
+        highlight_columns = {
+            row["name"] for row in con.execute("PRAGMA table_info(highlights)").fetchall()
+        }
+        if "pdf_xref" not in highlight_columns:
+            # xref of the native PDF annotation this highlight was written to
+            con.execute("ALTER TABLE highlights ADD COLUMN pdf_xref INTEGER")
+        if "style" not in highlight_columns:
+            # how the annotation is drawn in the PDF: 'highlight' | 'underline'
+            con.execute(
+                "ALTER TABLE highlights ADD COLUMN style TEXT NOT NULL DEFAULT 'highlight'"
+            )
+        paper_columns = {
+            row["name"] for row in con.execute("PRAGMA table_info(papers)").fetchall()
+        }
+        if "source_pdf" not in paper_columns:
+            # absolute path of the original PDF (e.g. the Zotero attachment)
+            con.execute("ALTER TABLE papers ADD COLUMN source_pdf TEXT")
         drawing_columns = {
             row["name"] for row in con.execute("PRAGMA table_info(drawings)").fetchall()
         }
@@ -349,8 +369,8 @@ def create_paper(meta: dict[str, Any]) -> str:
     pid = meta.get("id") or _uid()
     with _conn() as con:
         con.execute(
-            """INSERT INTO papers (id,title,authors,year,abstract,source,arxiv_id,doi,n_pages,tags,added_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            """INSERT INTO papers (id,title,authors,year,abstract,source,arxiv_id,doi,n_pages,tags,source_pdf,added_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 pid,
                 meta.get("title", ""),
@@ -362,6 +382,7 @@ def create_paper(meta: dict[str, Any]) -> str:
                 meta.get("doi", ""),
                 int(meta.get("n_pages", 0) or 0),
                 json.dumps(meta.get("tags", []), ensure_ascii=False),
+                meta.get("source_pdf") or None,
                 _now(),
             ),
         )
@@ -438,13 +459,14 @@ def add_highlight(paper_id: str, h: dict) -> dict:
         h.get("text", ""),
         h.get("note", ""),
         h.get("kind", "user"),
+        h.get("style", "highlight"),
         _now(),
     )
     with _conn() as con:
         con.execute(
             """INSERT OR REPLACE INTO highlights
-               (id,paper_id,page,rects,color,category,text,note,kind,created_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?)""",
+               (id,paper_id,page,rects,color,category,text,note,kind,style,created_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
             row,
         )
     return get_highlight(hid)
@@ -489,6 +511,72 @@ def update_highlight(hid: str, fields: dict) -> dict | None:
         with _conn() as con:
             con.execute(f"UPDATE highlights SET {','.join(sets)} WHERE id=?", vals)
     return get_highlight(hid)
+
+
+def source_pdf_path(paper_id: str) -> Path | None:
+    """Absolute path of the paper's *original* PDF outside Gloss, if linked.
+
+    Returns ``None`` when the paper has no linked original, when the link points
+    at Gloss's own working copy, or when the file has since moved away.
+    """
+    path = linked_source_pdf(paper_id)
+    if path is None or not _is_usable_pdf(path):
+        return None
+    try:
+        if path.resolve() == pdf_path(paper_id).resolve():
+            return None
+    except OSError:
+        return None
+    return path
+
+
+def _is_usable_pdf(path: Path) -> bool:
+    try:
+        return path.is_file() and path.stat().st_size > 0
+    except OSError:
+        return False
+
+
+def linked_source_pdf(paper_id: str) -> Path | None:
+    """The stored original-file link, resolved — even if it no longer exists."""
+    with _conn() as con:
+        row = con.execute(
+            "SELECT source_pdf FROM papers WHERE id=?", (paper_id,)
+        ).fetchone()
+    raw = (row["source_pdf"] if row else None) or ""
+    if not raw.strip():
+        return None
+    try:
+        return Path(raw).expanduser()
+    except (OSError, ValueError):
+        return None
+
+
+def set_paper_source_pdf(paper_id: str, path: str | None) -> None:
+    """Link (or unlink with ``None``) the paper's original PDF."""
+    with _conn() as con:
+        con.execute(
+            "UPDATE papers SET source_pdf=? WHERE id=?",
+            (str(path) if path else None, paper_id),
+        )
+
+
+def clear_highlight_xrefs(paper_id: str) -> None:
+    """Forget every recorded annotation xref for this paper.
+
+    Needed whenever annotations start living in a different file (the paper was
+    linked to / unlinked from its original PDF), since xrefs are file-local.
+    """
+    with _conn() as con:
+        con.execute(
+            "UPDATE highlights SET pdf_xref=NULL WHERE paper_id=?", (paper_id,)
+        )
+
+
+def set_highlight_xref(hid: str, xref: int | None) -> None:
+    """Record (or clear) the PDF annotation this highlight was written to."""
+    with _conn() as con:
+        con.execute("UPDATE highlights SET pdf_xref=? WHERE id=?", (xref, hid))
 
 
 def delete_highlight(hid: str) -> None:

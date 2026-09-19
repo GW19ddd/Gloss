@@ -71,14 +71,14 @@ workspace. For the interactive product tour, visit the
 |---|---|
 | 📖 **PDF reader** | PDF.js with a real selectable text layer; select text to pop up actions (Explain / Translate / add-to-chat / highlight) |
 | 🧠 **Summary** | One-click TL;DR + problem / method / results / contributions / limitations |
-| 📝 **Notes** | Structured study notes, **copy** or **download `.md`** |
+| 📝 **Notes** | Structured study notes where **each claim carries a clickable evidence tag** that jumps straight to the verbatim sentence in the PDF; **copy** or **download `.md`** |
 | 🗺️ **Mind Map** | Interactive React Flow map: zoom, expand/collapse, click a node for its summary and connections |
 | 💬 **Chat** | Ask like a colleague — **BM25 retrieval (RAG)** over the whole paper, **persistent Codex sessions**, editable auto-titles, streaming, and multiple saved chats per paper |
 | 💡 **Explain** | Select an equation / term / table and get a one-shot explanation; math rendered with **KaTeX** |
 | 🌐 **Translate** | **Sentence-level**, **persistently cached**, **reused across page ranges**; translation-only by default with a show-original toggle; **click a sentence to flash-locate it in the PDF**; for arXiv, **translate the exact LaTeX source** so nothing is missed |
 | 📐 **arXiv LaTeX** | A **TeX tab** to read the paper's LaTeX source (exact, no extraction loss) — and translate from it |
-| 🖍️ **Auto-highlight** | The AI picks key sentences by category and **anchors colored highlights onto the PDF** |
-| ✍️ **Annotations** | Personal notes, multi-color highlights, pencil, pen, highlighter and eraser, all saved locally on the page |
+| 🖍️ **Auto-highlight** | The AI picks key sentences by category, **anchors them onto the PDF** as underline highlights in category colors, **explains each one in your chosen answer language**, and groups them **by category** in the sidebar |
+| ✍️ **Annotations** | Personal notes, multi-color highlights, pencil, pen, highlighter and eraser, all saved locally on the page; highlights can be **synced back into the paper's original PDF** (e.g. your Zotero attachment) as standard annotations |
 | 📎 **Lasso to chat** | Freehand-circle any PDF region, preview the screenshot, then attach it directly to Chat |
 | 🔗 **References** | Parses the bibliography, enriches via **Crossref / arXiv**, **each entry is clickable** |
 | 🔭 **Scholar** | Find related papers via **Semantic Scholar / arXiv** and **import** them in one click |
@@ -242,7 +242,7 @@ Settings API and runtime data directories are outside version control, so secret
 ```
 backend/          FastAPI (one process mounts every /api/*, and serves the built frontend SPA)
   app/providers/  local_claude · local_codex · anthropic · openai · registry (LLM abstraction)
-  app/pdf/        PyMuPDF parsing (text blocks + bboxes) + structure heuristics (sections/refs/sentences)
+  app/pdf/        PyMuPDF parsing (text blocks + bboxes) + structure heuristics (sections/refs/sentences); annotation sync into the paper's original PDF (annot_writer · original_finder)
   app/features/   summarize · explain · translate · chat(RAG) · highlight · notes · mindmap · citations
   app/search/     Scholar search / recommend (Semantic Scholar / arXiv)
   app/skills/     discover & run Claude/Codex SKILL.md skills

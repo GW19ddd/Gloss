@@ -3,11 +3,12 @@ from __future__ import annotations
 
 import asyncio
 import os
+from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..library import importers, service, store
 from ..library.import_jobs import (
@@ -15,7 +16,7 @@ from ..library.import_jobs import (
     ImportJobManager,
     ImportQueueFullError,
 )
-from ..pdf import ingest, structure
+from ..pdf import annot_writer, ingest, original_finder, structure
 
 router = APIRouter(prefix="/api/papers", tags=["papers"])
 
@@ -44,6 +45,11 @@ class PaperPatch(BaseModel):
     title: str | None = None
     tags: list[str] | None = None
     year: str | None = None
+
+
+class PdfTargetBody(BaseModel):
+    """Absolute path of the paper's original PDF (its Zotero attachment)."""
+    path: str = Field(min_length=1, max_length=4096)
 
 
 @router.get("")
@@ -173,6 +179,85 @@ async def get_pdf(paper_id: str):
     if not p.exists():
         raise HTTPException(404, "pdf not found")
     return FileResponse(str(p), media_type="application/pdf", filename=f"{paper_id}.pdf")
+
+
+def _resolve_original(paper_id: str, raw: str) -> Path:
+    """Validate a user-supplied original-PDF path before we start writing to it."""
+    try:
+        path = Path(raw).expanduser()
+    except (OSError, ValueError):
+        raise HTTPException(400, "invalid PDF path")
+    if not path.is_absolute():
+        raise HTTPException(400, "original PDF path must be absolute")
+    if not path.exists():
+        raise HTTPException(404, f"no such file: {path}")
+    if not path.is_file() or path.suffix.lower() != ".pdf":
+        raise HTTPException(400, "original PDF path must point to a .pdf file")
+    if not os.access(path, os.W_OK):
+        raise HTTPException(400, f"that file is read-only: {path}")
+    try:
+        if path.resolve() == store.pdf_path(paper_id).resolve():
+            raise HTTPException(
+                400, "that is Gloss's own working copy — link the original file instead"
+            )
+    except OSError:
+        pass
+    try:
+        with open(path, "rb") as fh:
+            head = fh.read(5)
+    except OSError as e:
+        raise HTTPException(400, f"cannot read that file: {e}")
+    if head != b"%PDF-":
+        raise HTTPException(400, "that file is not a PDF")
+    return path
+
+
+@router.get("/{paper_id}/pdf-target")
+async def get_pdf_target(paper_id: str):
+    """Where annotations are currently written (Gloss copy vs. the original)."""
+    if not store.get_paper(paper_id):
+        raise HTTPException(404, "paper not found")
+    return annot_writer.target_info(paper_id)
+
+
+@router.post("/{paper_id}/pdf-target")
+async def link_pdf_target(paper_id: str, body: PdfTargetBody):
+    """Link the paper to its original PDF and push existing annotations into it.
+
+    From here on every highlight is written into that file — the one Zotero,
+    Preview or Acrobat open — instead of Gloss's internal copy.
+    """
+    if not store.get_paper(paper_id):
+        raise HTTPException(404, "paper not found")
+    path = _resolve_original(paper_id, body.path)
+    store.set_paper_source_pdf(paper_id, str(path))
+    # xrefs are file-local: they refer to the copy we were writing before.
+    store.clear_highlight_xrefs(paper_id)
+    result = await run_in_threadpool(annot_writer.sync_paper, paper_id)
+    return {"target": annot_writer.target_info(paper_id), "sync": result}
+
+
+@router.delete("/{paper_id}/pdf-target")
+async def unlink_pdf_target(paper_id: str):
+    """Stop writing into the original; annotations go back to Gloss's own copy."""
+    if not store.get_paper(paper_id):
+        raise HTTPException(404, "paper not found")
+    store.clear_highlight_xrefs(paper_id)
+    store.set_paper_source_pdf(paper_id, None)
+    return annot_writer.target_info(paper_id)
+
+
+@router.post("/{paper_id}/pdf-target/detect")
+async def detect_pdf_target(paper_id: str):
+    """Look for the paper's original PDF in Zotero's storage / configured dirs."""
+    paper = store.get_paper(paper_id)
+    if not paper:
+        raise HTTPException(404, "paper not found")
+    candidates = await run_in_threadpool(original_finder.find_candidates, paper)
+    return {
+        "candidates": candidates,
+        "searched": [str(d) for d in original_finder.search_dirs()],
+    }
 
 
 @router.get("/{paper_id}/pages")

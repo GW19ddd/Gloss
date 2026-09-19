@@ -1,12 +1,19 @@
-"""User highlights + annotations (markup tools) and chat-history CRUD."""
+"""User highlights + annotations (markup tools) and chat-history CRUD.
+
+Highlights are stored in Gloss's database *and* written into the PDF file itself
+as standard, editable PDF highlight annotations (see ``pdf/annot_writer.py``),
+so they survive being opened in Acrobat / Preview / Zotero.
+"""
 from __future__ import annotations
 
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, field_validator
 
 from ..library import store
+from ..pdf import annot_writer
 
 router = APIRouter(prefix="/api", tags=["annotations"])
 
@@ -61,6 +68,7 @@ async def add_highlight(paper_id: str, body: HighlightBody):
     if not store.get_paper(paper_id):
         raise HTTPException(404, "paper not found")
     h = store.add_highlight(paper_id, {**body.model_dump(), "kind": "user"})
+    await _write_to_pdf(paper_id, [h])
     return h
 
 
@@ -69,13 +77,68 @@ async def patch_highlight(hid: str, body: HighlightPatch):
     h = store.update_highlight(hid, body.model_dump(exclude_none=True))
     if not h:
         raise HTTPException(404, "highlight not found")
+    await _refresh_in_pdf(h)
     return h
 
 
 @router.delete("/highlights/{hid}")
 async def delete_highlight(hid: str):
+    h = store.get_highlight(hid)
+    if h and h.get("pdf_xref"):
+        await run_in_threadpool(
+            annot_writer.remove, h.get("paper_id"), [int(h["pdf_xref"])]
+        )
     store.delete_highlight(hid)
     return {"ok": True}
+
+
+@router.post("/papers/{paper_id}/highlights/sync-pdf")
+async def sync_highlights_to_pdf(paper_id: str):
+    """Rewrite the PDF's Gloss annotations from the database.
+
+    Use after the sync setting was turned back on, or when annotations were
+    edited outside Gloss. Never touches annotations created by other readers.
+    """
+    if not store.get_paper(paper_id):
+        raise HTTPException(404, "paper not found")
+    result = await run_in_threadpool(annot_writer.sync_paper, paper_id)
+    return {**result, "highlights": store.list_highlights(paper_id)}
+
+
+async def _write_to_pdf(paper_id: str, highlights: list[dict]) -> None:
+    """Create native PDF annotations and remember their xrefs."""
+    if not highlights or not annot_writer.enabled():
+        return
+    written = await run_in_threadpool(annot_writer.add, paper_id, highlights)
+    for highlight in highlights:
+        xref = written.get(highlight["id"])
+        if xref is not None:
+            store.set_highlight_xref(highlight["id"], xref)
+        highlight["pdf_xref"] = xref
+
+
+async def _refresh_in_pdf(highlight: dict) -> None:
+    """Push a colour/note edit into the PDF, recreating the annotation if the
+    stored xref no longer resolves (e.g. the file was edited elsewhere)."""
+    if not annot_writer.enabled():
+        return
+    paper_id = highlight.get("paper_id")
+    if not paper_id:
+        return
+    if highlight.get("pdf_xref"):
+        found = await run_in_threadpool(
+            annot_writer.update, paper_id, [highlight]
+        )
+        if found:
+            highlight["pdf_xref"] = found[highlight["id"]]
+            return
+    written = await run_in_threadpool(
+        annot_writer.ensure, paper_id, [highlight]
+    )
+    xref = written.get(highlight["id"])
+    if xref is not None:
+        store.set_highlight_xref(highlight["id"], xref)
+    highlight["pdf_xref"] = xref
 
 
 @router.get("/papers/{paper_id}/drawings")

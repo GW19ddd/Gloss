@@ -259,8 +259,11 @@ class AITaskManager:
         if feature_id == "core.summary":
             return store.cache_get(paper_id, f"summary:{lang}")
         if feature_id == "core.notes":
-            cached = store.cache_get(paper_id, f"notes:{lang}")
-            return {"markdown": cached} if cached is not None else None
+            cached = store.cache_get(paper_id, f"notes2:{lang}")
+            if cached is None:
+                return None
+            # Notes cached before evidence existed were a bare markdown string.
+            return cached if isinstance(cached, dict) else {"markdown": cached, "evidence": []}
         if feature_id == "core.mindmap":
             cached = store.cache_get(paper_id, f"mindmap2:{lang}")
             return {"tree": cached} if cached is not None else None
@@ -474,14 +477,13 @@ class AITaskManager:
                     model=model,
                 )
             if record.feature_id == "core.notes":
-                markdown = await notes_feat.build_notes(
+                return await notes_feat.build_notes(
                     paper_id,
                     language=language,
                     refresh=record.refresh,
                     provider=provider,
                     model=model,
                 )
-                return {"markdown": markdown}
             if record.feature_id == "core.mindmap":
                 tree = await mindmap_feat.build_mindmap(
                     paper_id,

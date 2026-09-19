@@ -82,7 +82,29 @@ export interface Highlight {
   text: string;
   note: string;
   kind: string;
+  /** how the annotation is drawn in the PDF: 'highlight' | 'underline' | 'strikeout' */
+  style?: string | null;
+  /** xref of the native PDF annotation this highlight was written to (null = not embedded) */
+  pdf_xref?: number | null;
 }
+/** Where annotations are currently written: the original PDF, or Gloss's own copy. */
+export interface PdfTarget {
+  path: string;
+  is_original: boolean;
+  exists: boolean;
+  linked_path: string | null;
+  linked_missing: boolean;
+}
+export interface PdfCandidate {
+  path: string;
+  name: string;
+  score: number;
+}
+export interface PdfTargetLink {
+  target: PdfTarget;
+  sync: { written: number; removed: number; total: number; embedded: number };
+}
+
 export type DrawingTool = "pencil" | "pen" | "highlighter";
 export interface Drawing {
   id: string;
@@ -99,6 +121,18 @@ export interface PersonalNote {
   paper_id: string;
   content: string;
   updated_at: number | null;
+}
+/** A verbatim quote backing a claim in the AI deep note; `page`/`rects` locate it in the PDF. */
+export interface NoteEvidence {
+  id: string;
+  quote: string;
+  why: string;
+  page: number | null;
+  rects: [number, number, number, number][];
+}
+export interface DeepNote {
+  markdown: string;
+  evidence: NoteEvidence[];
 }
 export interface ChatAttachment {
   id: string;
@@ -477,6 +511,28 @@ export const api = {
     }).then((r) => j<Highlight>(r)),
   deleteHighlight: (hid: string) =>
     fetch(`/api/highlights/${hid}`, { method: "DELETE" }).then((r) => j<any>(r)),
+  getPdfTarget: (id: string) =>
+    fetch(`/api/papers/${id}/pdf-target`).then((r) => j<PdfTarget>(r)),
+  linkPdfTarget: (id: string, path: string) =>
+    fetch(`/api/papers/${id}/pdf-target`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path }),
+    }).then((r) => j<PdfTargetLink>(r)),
+  unlinkPdfTarget: (id: string) =>
+    fetch(`/api/papers/${id}/pdf-target`, { method: "DELETE" }).then((r) => j<PdfTarget>(r)),
+  detectPdfTarget: (id: string) =>
+    fetch(`/api/papers/${id}/pdf-target/detect`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    }).then((r) => j<{ candidates: PdfCandidate[]; searched: string[] }>(r)),
+  syncHighlightsToPdf: (id: string) =>
+    fetch(`/api/papers/${id}/highlights/sync-pdf`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    }).then((r) => j<{ written: number; removed: number; total: number; embedded: number; highlights: Highlight[] }>(r)),
   patchHighlight: (hid: string, fields: any) =>
     fetch(`/api/highlights/${hid}`, {
       method: "PATCH",

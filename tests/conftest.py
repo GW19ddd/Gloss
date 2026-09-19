@@ -122,6 +122,13 @@ def client():
 
 
 @pytest.fixture()
+def sync_enabled(client):
+    """Restore the global "write highlights into the PDF" setting afterwards."""
+    yield
+    client.post("/api/settings", json={"sync_highlights_to_pdf": True})
+
+
+@pytest.fixture()
 def paper_id(client, pdf_bytes):
     """Upload the sample PDF, yield the new paper id, then delete it so each
     test starts from a clean-ish library."""
