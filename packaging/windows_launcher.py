@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+import json
 import logging
 import multiprocessing
 import os
@@ -21,6 +22,9 @@ APP_VERSION = "1.0.2"
 STARTUP_TIMEOUT_SECONDS = 30
 MIN_FALLBACK_PORT = 1024
 EXIT_REQUEST_EVENT = "gloss:close-request"
+
+#: The window Gloss opens is titled with this, so a second launch can find it.
+WINDOW_TITLE_MARKER = "Gloss"
 
 
 def _exit_confirmation_enabled() -> bool:
@@ -133,11 +137,159 @@ def _configure_logging() -> Path:
     return log_path
 
 
-def _show_error(message: str) -> None:
+def _show_message(message: str, icon: int = 0) -> None:
     if sys.platform == "win32":
-        ctypes.windll.user32.MessageBoxW(None, message, APP_NAME, 0x10)
+        ctypes.windll.user32.MessageBoxW(None, message, APP_NAME, icon)
     else:
         print(f"{APP_NAME}: {message}", file=sys.stderr)
+
+
+def _show_error(message: str) -> None:
+    _show_message(message, 0x10)
+
+
+def _show_info(message: str) -> None:
+    _show_message(message, 0x40)
+
+
+def _requested_pdf(raw: str | None) -> Path | None:
+    """The PDF a file association asked us to open, or None for a plain launch."""
+    if not raw:
+        return None
+    candidate = Path(raw.strip().strip('"')).expanduser()
+    if candidate.suffix.lower() != ".pdf" or not candidate.is_file():
+        _show_error(f"Gloss can only open PDF files that exist:\n\n{raw}")
+        raise SystemExit(2)
+    return candidate.resolve()
+
+
+def _health_ok(url: str) -> bool:
+    try:
+        with urllib.request.urlopen(_health_url(url), timeout=0.5) as response:
+            return response.status == 200
+    except (OSError, ValueError):
+        return False
+
+
+def _can_receive_files(url: str) -> bool:
+    """Whether the instance on ``url`` is a Gloss new enough to take a file.
+
+    Health alone is not enough to accept a hand-off. An older Gloss answers
+    ``/api/health`` but has no ``/api/open-file``, so it replies 405 and the
+    launcher gives up: to the user, double-clicking a PDF does nothing. Asking
+    for the association endpoint distinguishes our own build from anything else
+    that happens to be serving on one of these ports.
+    """
+    try:
+        with urllib.request.urlopen(f"{url}/api/file-association", timeout=1.0) as response:
+            return response.status == 200
+    except (OSError, ValueError):
+        return False
+
+
+def _running_instance() -> str | None:
+    """A Gloss server that is already listening, if there is one.
+
+    Windows starts us with only a file path, so the port the running copy ended
+    up on is unknown: the small range Gloss prefers is probed in order. Only a
+    copy that can actually receive the file counts as running — see
+    :func:`_can_receive_files`.
+    """
+    ports: list[int] = []
+    configured = os.environ.get("GLOSS_PORT")
+    if configured and configured.isdigit():
+        ports.append(int(configured))
+    ports.extend(range(8010, 8021))
+    for port in dict.fromkeys(ports):
+        url = f"http://127.0.0.1:{port}"
+        if _health_ok(url) and _can_receive_files(url):
+            return url
+    return None
+
+
+def _post_open_file(url: str, path: Path, timeout: float = 60) -> bool:
+    """Import ``path`` into a Gloss that is already serving."""
+    request = urllib.request.Request(
+        f"{url}/api/open-file",
+        data=json.dumps({"path": str(path)}).encode("utf-8"),
+        headers={"content-type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return response.status == 200
+    except (OSError, ValueError):
+        logging.info("Could not hand %s to %s", path, url, exc_info=True)
+        return False
+
+
+def _focus_gloss_window() -> None:
+    """Raise the window of the Gloss that is already running, best effort.
+
+    A hand-off is invisible without this: the file lands in a window that may be
+    behind everything else, and it looks like nothing happened.
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        user32 = ctypes.windll.user32
+        callback = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+
+        def visit(hwnd, _lparam):
+            if not user32.IsWindowVisible(hwnd):
+                return True
+            length = user32.GetWindowTextLengthW(hwnd)
+            if not length:
+                return True
+            buffer = ctypes.create_unicode_buffer(length + 1)
+            user32.GetWindowTextW(hwnd, buffer, length + 1)
+            if WINDOW_TITLE_MARKER not in buffer.value:
+                return True
+            if user32.IsIconic(hwnd):
+                user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+            user32.SetForegroundWindow(hwnd)
+            return False
+
+        user32.EnumWindows(callback(visit), 0)
+    except Exception:
+        logging.debug("Could not raise the running Gloss window", exc_info=True)
+
+
+def _handle_association(args) -> int:
+    """Register, unregister or report the PDF association, then exit."""
+    from app.file_association import set_registered, status
+
+    try:
+        if args.association_status:
+            result = status()
+        else:
+            result = set_registered(args.register)
+    except RuntimeError as exc:
+        _show_error(str(exc))
+        return 1
+    except OSError as exc:
+        _show_error(f"Windows refused the change:\n\n{exc}")
+        return 1
+
+    if not result["supported"]:
+        _show_error("PDF file association is only available on Windows.")
+        return 1
+    if args.association_status:
+        _show_info(
+            "Gloss is registered as a PDF handler."
+            if result["registered"]
+            else "Gloss is not registered as a PDF handler."
+        )
+        return 0
+    if result["registered"]:
+        _show_info(
+            "Gloss now appears under \"Open with\" for PDF files.\n\n"
+            "To make it the default: Windows Settings → Apps → Default apps, "
+            "then choose Gloss for .pdf."
+        )
+    else:
+        _show_info("Gloss is no longer registered as a PDF handler.")
+    return 0
 
 
 def _port_available(host: str, port: int) -> bool:
@@ -258,7 +410,29 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="run only the local server (for diagnostics)",
     )
+    parser.add_argument(
+        "--register",
+        action="store_true",
+        help="register Gloss as a Windows PDF handler, then exit",
+    )
+    parser.add_argument(
+        "--unregister",
+        action="store_true",
+        help="remove the Windows PDF handler registration, then exit",
+    )
+    parser.add_argument(
+        "--association-status",
+        action="store_true",
+        help="report whether the Windows PDF registration is in place, then exit",
+    )
     parser.add_argument("--version", action="version", version=f"{APP_NAME} {APP_VERSION}")
+    parser.add_argument(
+        "file",
+        nargs="?",
+        default=None,
+        metavar="PDF",
+        help="open this PDF (used by the Windows file association)",
+    )
     return parser
 
 
@@ -273,9 +447,21 @@ def main() -> int:
     _prepare_imports()
     log_path = _configure_logging()
 
+    if args.register or args.unregister or args.association_status:
+        return _handle_association(args)
+
     try:
         from app.config import CACHE_DIR
         from app.main import app
+
+        # Windows hands us a PDF when someone double-clicks one. If Gloss is
+        # already serving, hand the file over instead of opening a second copy.
+        target = _requested_pdf(args.file)
+        if target is not None:
+            running = _running_instance()
+            if running and _post_open_file(running, target):
+                _focus_gloss_window()
+                return 0
 
         requested_port = args.port
         args.port = _select_available_port(args.host, requested_port)
@@ -292,6 +478,11 @@ def main() -> int:
         if not _wait_until_ready(url, server_thread):
             _stop_server(server, server_thread)
             raise RuntimeError("The local Gloss server did not become ready in time.")
+
+        # No copy was running to take the file, so this one imports it and the
+        # frontend picks it up from /api/pending-open as soon as it loads.
+        if target is not None:
+            _post_open_file(url, target)
 
         if args.headless:
             return _run_headless(server, server_thread)

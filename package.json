@@ -31,6 +31,7 @@
     "setup": "node scripts/gloss.mjs setup",
     "start": "node scripts/gloss.mjs start",
     "dev": "node scripts/gloss.mjs dev",
+    "start:build": "node scripts/gloss.mjs setup && node scripts/gloss.mjs start",
     "doctor": "node scripts/gloss.mjs doctor --json",
     "test": "node scripts/gloss.mjs test",
     "build:frontend": "npm --prefix frontend ci --no-fund --no-audit && npm --prefix frontend run build",

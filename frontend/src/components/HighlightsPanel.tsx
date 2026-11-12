@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { api, type PdfCandidate, type PdfTarget } from "../api/client";
+import {
+  api,
+  type PdfAnnotation,
+  type PdfCandidate,
+  type PdfTarget,
+} from "../api/client";
 import { useStore } from "../store";
 
 const COLORS = ["#ffd54f", "#a5d6a7", "#90caf9", "#ef9a9a", "#ce93d8"];
@@ -18,13 +23,21 @@ export function HighlightsPanel() {
   const current = useStore((s) => s.current);
   const highlights = useStore((s) => s.highlights);
   const drawings = useStore((s) => s.drawings);
+  const pdfAnnotations = useStore((s) => s.pdfAnnotations);
   const refresh = useStore((s) => s.refreshHighlights);
   const refreshDrawings = useStore((s) => s.refreshDrawings);
+  const deletePdfAnnotation = useStore((s) => s.deletePdfAnnotation);
   const syncToPdf = useStore((s) => s.syncHighlightsToPdf);
   const notify = useStore((s) => s.notify);
   const setGoto = useStore((s) => s.setGoto);
   const askAboutText = useStore((s) => s.askAboutText);
+  const setTab = useStore((s) => s.setTab);
+  const setNoteQuery = useStore((s) => s.setNoteQuery);
   const uiLang = useStore((s) => s.uiLang);
+  const pageLabels = useStore((s) => s.pages?.page_labels);
+
+  /** The number printed on the page, where the PDF gives one. */
+  const pageLabel = (page: number) => pageLabels?.[page] || String(page + 1);
   const [busy, setBusy] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
@@ -36,6 +49,8 @@ export function HighlightsPanel() {
   const [candidates, setCandidates] = useState<PdfCandidate[]>([]);
   const [searched, setSearched] = useState<string[]>([]);
   const [searching, setSearching] = useState(false);
+  /** path currently being linked — the backend rewrites the whole file, so this can take a while */
+  const [linking, setLinking] = useState<string | null>(null);
   /** which auto-highlight category group is expanded (null = all collapsed) */
   const [openGroup, setOpenGroup] = useState<string | null>(null);
 
@@ -50,6 +65,7 @@ export function HighlightsPanel() {
       yours: "Your highlights",
       autos: (n: number) => `Auto highlights (${n})`,
       addToChat: "Add to chat",
+      findInNote: "Find this passage in the AI note",
       del: "Delete highlight",
       edit: "Edit color or note",
       save: "Save",
@@ -58,12 +74,19 @@ export function HighlightsPanel() {
       ink: (n: number) => `Ink strokes (${n})`,
       inkStroke: { pencil: "Pencil", pen: "Pen", highlighter: "Highlighter" },
       deleteInk: "Delete stroke",
+      inFile: (n: number) => `Annotations in the PDF (${n})`,
+      inFileHint: "Evidence and marks from other readers — only in the file",
+      evidence: "Evidence",
+      external: "External",
+      delAnnot: "Delete annotation",
       target: "Write to",
       original: "the original PDF",
       internalCopy: "Gloss's own copy",
       linkBtn: "🔗 Original file…",
       linkHint: "Absolute path of the PDF in Zotero / on disk",
       use: "Use this file",
+      linking: "Linking…",
+      linkingTo: (p: string) => `Linking to ${p} — writing highlights into it…`,
       detect: "Find automatically",
       detecting: "Searching…",
       unlink: "Stop using the original",
@@ -89,12 +112,19 @@ export function HighlightsPanel() {
       ink: (n: number) => `画笔标注 (${n})`,
       inkStroke: { pencil: "铅笔", pen: "写字笔", highlighter: "荧光笔" },
       deleteInk: "删除笔迹",
+      inFile: (n: number) => `PDF 文件中的批注 (${n})`,
+      inFileHint: "笔记证据与其他阅读器留下的标注 — 只存在于文件里",
+      evidence: "证据",
+      external: "外部",
+      delAnnot: "删除批注",
       target: "写入目标",
       original: "原件 PDF",
       internalCopy: "Gloss 内部副本",
       linkBtn: "🔗 关联原件…",
       linkHint: "粘贴 Zotero / 磁盘上该 PDF 的绝对路径",
       use: "使用这个文件",
+      linking: "关联中…",
+      linkingTo: (p: string) => `正在关联 ${p} 并写入已有标注…`,
       detect: "自动查找",
       detecting: "查找中…",
       unlink: "取消关联原件",
@@ -113,19 +143,32 @@ export function HighlightsPanel() {
   }, [current?.id]);
 
   async function linkPath(path: string) {
-    if (!current || !path.trim()) return;
-    const result = await api.linkPdfTarget(current.id, path.trim());
-    setTarget(result.target);
-    setTargetPath("");
-    setCandidates([]);
-    notify(T.linked(result.sync.written));
-    await refresh();
+    if (!current || !path.trim() || linking) return;
+    setLinking(path.trim());
+    notify(T.linkingTo(path.trim()));
+    try {
+      const result = await api.linkPdfTarget(current.id, path.trim());
+      setTarget(result.target);
+      setTargetPath("");
+      setCandidates([]);
+      notify(T.linked(result.sync.written));
+      await refresh();
+    } catch (e) {
+      // Otherwise a 400/500 (file locked, unreadable…) looks like a dead button.
+      notify(String(e instanceof Error ? e.message : e));
+    } finally {
+      setLinking(null);
+    }
   }
 
   async function unlinkOriginal() {
     if (!current) return;
-    setTarget(await api.unlinkPdfTarget(current.id));
-    setCandidates([]);
+    try {
+      setTarget(await api.unlinkPdfTarget(current.id));
+      setCandidates([]);
+    } catch (e) {
+      notify(String(e instanceof Error ? e.message : e));
+    }
   }
 
   async function detect() {
@@ -136,6 +179,8 @@ export function HighlightsPanel() {
       setCandidates(result.candidates || []);
       setSearched(result.searched || []);
       if (!result.candidates?.length) notify(T.none);
+    } catch (e) {
+      notify(String(e instanceof Error ? e.message : e));
     } finally {
       setSearching(false);
     }
@@ -178,8 +223,16 @@ export function HighlightsPanel() {
     await refreshDrawings();
   }
 
+  async function delAnnot(annotation: PdfAnnotation) {
+    await deletePdfAnnotation(annotation.xref, annotation.source);
+  }
+
   const auto_ = highlights.filter((h) => h.kind === "auto");
   const user_ = highlights.filter((h) => h.kind === "user");
+  // Marks that exist only inside the file: evidence written for a note, and
+  // whatever Zotero or another reader left there. Gloss's own highlights are
+  // listed from the database above, so they are not repeated here.
+  const fileAnnos = pdfAnnotations.filter((a) => a.kind !== "gloss");
 
   // Auto highlights grouped by category, so 24 of them don't spill everywhere.
   const autoGroups = (() => {
@@ -224,8 +277,8 @@ export function HighlightsPanel() {
               onChange={(event) => setTargetPath(event.target.value)}
             />
             <div className="hl-target-actions">
-              <button className="small primary" disabled={!targetPath.trim()} onClick={() => linkPath(targetPath)}>
-                {T.use}
+              <button className="small primary" disabled={!!linking || !targetPath.trim()} onClick={() => linkPath(targetPath)}>
+                {linking ? T.linking : T.use}
               </button>
               <button className="small" disabled={searching} onClick={detect}>
                 {searching ? T.detecting : T.detect}
@@ -248,9 +301,10 @@ export function HighlightsPanel() {
                 <span className="hl-candidate-path">{candidate.path}</span>
                 <button
                   className="small primary"
+                  disabled={!!linking}
                   onClick={() => linkPath(candidate.path)}
                 >
-                  {T.use}
+                  {linking === candidate.path ? T.linking : T.use}
                 </button>
               </div>
             ))}
@@ -258,17 +312,25 @@ export function HighlightsPanel() {
         )}
       </div>
 
-      {highlights.length === 0 && drawings.length === 0 && <div className="muted">{T.empty}</div>}
+      {highlights.length === 0 && drawings.length === 0 && fileAnnos.length === 0 && (
+        <div className="muted">{T.empty}</div>
+      )}
       {user_.length > 0 && <h5>{T.yours}</h5>}
       {user_.map((h) => (
         <div className="hl-record" key={h.id}>
           <div className="hl-item">
             <span className="hl-swatch" style={{ background: h.color }} />
             <span className="hl-text" onClick={() => setGoto(h.page)}>
-              <span className="hl-page">p{h.page + 1}</span>
+              <span className="hl-page" title={`PDF ${h.page + 1}`}>p{pageLabel(h.page)}</span>
               {h.pdf_xref != null && <span className="hl-pdf" title={T.inPdf}>PDF</span>} {h.text.slice(0, 140)}
               {h.note && <em className="hl-note"> — {h.note}</em>}
             </span>
+            {/* The other half of note ↔ highlight: find this passage in the note. */}
+            <button
+              className="hl-ask"
+              title={T.findInNote}
+              onClick={() => { setNoteQuery(h.text.slice(0, 120)); setTab("deep-note"); }}
+            >🔍</button>
             <button className="hl-ask" title={T.edit} onClick={() => {
               setEditing(h.id);
               setEditNote(h.note || "");
@@ -307,7 +369,7 @@ export function HighlightsPanel() {
             {open && items.map((h) => (
               <div className="hl-item" key={h.id}>
                 <span className="hl-text" onClick={() => setGoto(h.page)}>
-                  <span className="hl-page">p{h.page + 1}</span>
+                  <span className="hl-page" title={`PDF ${h.page + 1}`}>p{pageLabel(h.page)}</span>
                   {h.pdf_xref != null && <span className="hl-pdf" title={T.inPdf}>PDF</span>} {h.text.slice(0, 140)}
                   {h.note && <em className="hl-note"> — {h.note}</em>}
                 </span>
@@ -323,9 +385,28 @@ export function HighlightsPanel() {
         <div className="hl-item" key={drawing.id}>
           <span className="hl-swatch ink" style={{ background: drawing.color }} />
           <span className="hl-text" onClick={() => setGoto(drawing.page)}>
-            <span className="hl-page">p{drawing.page + 1}</span> {T.inkStroke[drawing.tool || "pen"]}
+            <span className="hl-page" title={`PDF ${drawing.page + 1}`}>p{pageLabel(drawing.page)}</span> {T.inkStroke[drawing.tool || "pen"]}
           </span>
           <button className="x" title={T.deleteInk} onClick={() => deleteDrawing(drawing.id)}>×</button>
+        </div>
+      ))}
+      {fileAnnos.length > 0 && (
+        <>
+          <h5>{T.inFile(fileAnnos.length)}</h5>
+          <div className="muted hl-file-hint">{T.inFileHint}</div>
+        </>
+      )}
+      {fileAnnos.map((a) => (
+        <div className="hl-item" key={`${a.source}-${a.xref}`}>
+          <span className="hl-swatch" style={{ background: a.color || "#ffd400" }} />
+          <span className="hl-text" onClick={() => setGoto(a.page)}>
+            <span className="hl-page" title={`PDF ${a.page + 1}`}>p{pageLabel(a.page)}</span>
+            <span className="tag">
+              {a.kind === "gloss_evidence" ? T.evidence : a.title || T.external}
+            </span>
+            {(a.content || "").slice(0, 140)}
+          </span>
+          <button className="x" title={T.delAnnot} onClick={() => delAnnot(a)}>×</button>
         </div>
       ))}
     </div>

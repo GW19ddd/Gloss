@@ -17,7 +17,10 @@ from typing import AsyncIterator
 
 from ..config import ensure_claude_sandbox, load_config
 from ..platform_support import (
+    aclose_cli_stream,
+    iterate_cli_stream,
     resolve_cli_command,
+    run_cli_coroutine,
     subprocess_group_options,
     terminate_process_tree,
 )
@@ -117,6 +120,9 @@ class LocalClaudeProvider(Provider):
 
     async def test_connection(self) -> str:
         """Check subscription login without launching a full Claude inference."""
+        return await run_cli_coroutine(self._auth_status())
+
+    async def _auth_status(self) -> str:
         cmd = resolve_cli_command("claude") + ["auth", "status", "--json"]
         env, cwd = _sandbox_env()
         proc = None
@@ -180,6 +186,25 @@ class LocalClaudeProvider(Provider):
         return text, usage, resolved_session_id
 
     async def _run_completion(
+        self,
+        system: str,
+        messages: list[Message],
+        model: str | None,
+        *,
+        persist_session: bool,
+        session_id: str | None = None,
+    ) -> tuple[str, dict, str | None]:
+        return await run_cli_coroutine(
+            self._execute_completion(
+                system,
+                messages,
+                model,
+                persist_session=persist_session,
+                session_id=session_id,
+            )
+        )
+
+    async def _execute_completion(
         self,
         system: str,
         messages: list[Message],
@@ -269,6 +294,18 @@ class LocalClaudeProvider(Provider):
         self, system: str, messages: list[Message], model: str | None = None
     ) -> AsyncIterator[str]:
         """True token streaming via `--output-format stream-json`, with fallback."""
+        events = self._stream_events(system, messages, model)
+        try:
+            async for chunk in iterate_cli_stream(events):
+                yield chunk
+        finally:
+            # Closing this stream must kill the CLI process, even when the
+            # consumer walks away mid-answer.
+            await aclose_cli_stream(events)
+
+    async def _stream_events(
+        self, system: str, messages: list[Message], model: str | None = None
+    ) -> AsyncIterator[str]:
         image_dir, image_paths = _materialize_message_images(messages)
         prompt = render_transcript(messages) + _image_prompt_suffix(image_paths)
         model = _pick_model(model)

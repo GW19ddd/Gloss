@@ -11,8 +11,9 @@ import signal
 import shutil
 import subprocess
 import sys
+import threading
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import AsyncIterator, Callable, Mapping
 from pathlib import Path
 
 
@@ -130,6 +131,90 @@ def subprocess_group_options(platform_name: str = sys.platform) -> dict:
             )
         }
     return {"start_new_session": True}
+
+
+_CLI_LOOP: asyncio.AbstractEventLoop | None = None
+
+
+def _loop_can_spawn_subprocesses(loop: asyncio.AbstractEventLoop) -> bool:
+    """Windows selector loops cannot create subprocesses; proactor loops can."""
+    if sys.platform == "win32":
+        return not isinstance(loop, asyncio.SelectorEventLoop)
+    return True
+
+
+def cli_subprocess_loop() -> asyncio.AbstractEventLoop:
+    """Return a loop able to spawn subprocesses, whatever the host loop is.
+
+    uvicorn installs a Windows selector loop when it reloads or supervises
+    workers, and selector loops have no subprocess support:
+    ``create_subprocess_exec`` raises a bare NotImplementedError. Keep one
+    dedicated proactor loop for CLI work so providers do not depend on the
+    loop the ASGI server happens to run.
+    """
+    global _CLI_LOOP
+    if _CLI_LOOP is None or _CLI_LOOP.is_closed():
+        loop = (
+            asyncio.ProactorEventLoop()
+            if sys.platform == "win32"
+            else asyncio.new_event_loop()
+        )
+        threading.Thread(
+            target=loop.run_forever, name="gloss-cli-subprocesses", daemon=True
+        ).start()
+        _CLI_LOOP = loop
+    return _CLI_LOOP
+
+
+async def run_cli_coroutine(coroutine):
+    """Await `coroutine` on a loop that can spawn subprocesses."""
+    loop = asyncio.get_running_loop()
+    if _loop_can_spawn_subprocesses(loop):
+        return await coroutine
+    return await asyncio.wrap_future(
+        asyncio.run_coroutine_threadsafe(coroutine, cli_subprocess_loop())
+    )
+
+
+async def iterate_cli_stream(stream: AsyncIterator[str]) -> AsyncIterator[str]:
+    """Yield from `stream` on a loop that can spawn subprocesses.
+
+    Closing the consumer closes `stream` too, so provider cleanup (killing the
+    CLI process) still runs when a caller abandons a stream mid-flight.
+    """
+    loop = asyncio.get_running_loop()
+    if _loop_can_spawn_subprocesses(loop):
+        try:
+            async for chunk in stream:
+                yield chunk
+        finally:
+            await stream.aclose()
+        return
+    cli_loop = cli_subprocess_loop()
+    try:
+        while True:
+            try:
+                chunk = await asyncio.wrap_future(
+                    asyncio.run_coroutine_threadsafe(stream.__anext__(), cli_loop)
+                )
+            except StopAsyncIteration:
+                return
+            yield chunk
+    finally:
+        await asyncio.wrap_future(
+            asyncio.run_coroutine_threadsafe(stream.aclose(), cli_loop)
+        )
+
+
+async def aclose_cli_stream(stream: AsyncIterator[str]) -> None:
+    """Close `stream` on the loop that owns it."""
+    loop = asyncio.get_running_loop()
+    if _loop_can_spawn_subprocesses(loop):
+        await stream.aclose()
+        return
+    await asyncio.wrap_future(
+        asyncio.run_coroutine_threadsafe(stream.aclose(), cli_subprocess_loop())
+    )
 
 
 async def terminate_process_tree(process, platform_name: str = sys.platform) -> None:

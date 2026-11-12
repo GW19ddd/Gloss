@@ -262,8 +262,9 @@ class AITaskManager:
             cached = store.cache_get(paper_id, f"notes2:{lang}")
             if cached is None:
                 return None
-            # Notes cached before evidence existed were a bare markdown string.
-            return cached if isinstance(cached, dict) else {"markdown": cached, "evidence": []}
+            # The UI wants the draft *and* the reader's edit/history, so it can
+            # tell a fresh draft from a hand-edited one after a remount.
+            return notes_feat.notes_state(paper_id, lang)
         if feature_id == "core.mindmap":
             cached = store.cache_get(paper_id, f"mindmap2:{lang}")
             return {"tree": cached} if cached is not None else None
@@ -483,6 +484,8 @@ class AITaskManager:
                     refresh=record.refresh,
                     provider=provider,
                     model=model,
+                    scope=record.input.get("scope"),
+                    section=record.input.get("section"),
                 )
             if record.feature_id == "core.mindmap":
                 tree = await mindmap_feat.build_mindmap(

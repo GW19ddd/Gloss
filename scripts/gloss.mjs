@@ -90,6 +90,19 @@ function requirementsFingerprint() {
   return crypto.createHash("sha256").update(contents).digest("hex");
 }
 
+// Reinstalling node_modules on every setup is minutes of pure waiting. Treat
+// the tree as fresh when it was written after the lockfile last changed.
+function frontendDepsFresh() {
+  const lock = path.join(FRONTEND, "package-lock.json");
+  const modules = path.join(FRONTEND, "node_modules");
+  if (!fs.existsSync(lock) || !fs.existsSync(modules)) return false;
+  try {
+    return fs.statSync(modules).mtimeMs >= fs.statSync(lock).mtimeMs;
+  } catch {
+    return false;
+  }
+}
+
 function environmentPrepared() {
   if (!fs.existsSync(VENV_PYTHON)) return false;
   if (!fs.existsSync(SETUP_MARKER)) return IS_SOURCE_CHECKOUT;
@@ -175,14 +188,18 @@ function setup() {
       fail("this package is missing its prebuilt frontend; reinstall Gloss or report a broken release.");
     }
     const manager = packageManager();
-    console.log(`==> installing and building frontend with ${manager}`);
-    if (manager === "bun") {
-      runPackage(manager, ["install", "--frozen-lockfile"], { cwd: FRONTEND, env });
-      runPackage(manager, ["run", "build"], { cwd: FRONTEND, env });
+    if (frontendDepsFresh()) {
+      console.log("==> frontend dependencies already installed");
     } else {
-      runPackage(manager, ["ci", "--no-fund", "--no-audit"], { cwd: FRONTEND, env });
-      runPackage(manager, ["run", "build"], { cwd: FRONTEND, env });
+      console.log(`==> installing frontend dependencies with ${manager}`);
+      if (manager === "bun") {
+        runPackage(manager, ["install", "--frozen-lockfile"], { cwd: FRONTEND, env });
+      } else {
+        runPackage(manager, ["ci", "--no-fund", "--no-audit"], { cwd: FRONTEND, env });
+      }
     }
+    console.log(`==> building frontend with ${manager}`);
+    runPackage(manager, ["run", "build"], { cwd: FRONTEND, env });
   }
   fs.writeFileSync(
     SETUP_MARKER,
@@ -226,6 +243,79 @@ function portIsFree(host, port) {
   });
 }
 
+function spawnBackend(host, port) {
+  return spawn(
+    VENV_PYTHON,
+    ["-m", "uvicorn", "app.main:app", "--host", host, "--port", String(port)],
+    { cwd: BACKEND, env: process.env, stdio: "inherit", shell: false, detached: !IS_WINDOWS },
+  );
+}
+
+function browserHost(host) {
+  return host === "0.0.0.0" || host === "::" ? "127.0.0.1" : host;
+}
+
+async function healthOk(url, timeoutMs = 1000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${url}/api/health`, { signal: controller.signal });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Health alone does not mean the running copy can take a file: an older Gloss
+// answers /api/health but has no /api/open-file, so the hand-off would fail
+// and the PDF would never open.
+async function handoffReady(url, timeoutMs = 1000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${url}/api/file-association`, { signal: controller.signal });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function waitForHealth(url, timeoutMs = 30000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await healthOk(url)) return true;
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
+  return false;
+}
+
+async function postJson(url, body) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    fail(`Gloss refused ${url}: HTTP ${response.status} ${(await response.text()).slice(0, 200)}`);
+  }
+  return response.json();
+}
+
+function openBrowser(url) {
+  const options = { stdio: "ignore", detached: true };
+  if (IS_WINDOWS) {
+    spawn(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", "start", "", url], options).unref();
+  } else if (process.platform === "darwin") {
+    spawn("open", [url], options).unref();
+  } else {
+    spawn("xdg-open", [url], options).unref();
+  }
+}
+
 async function start() {
   ensurePrepared();
   const host = selectedHost();
@@ -234,11 +324,58 @@ async function start() {
     fail(`port ${port} on ${host} is already in use. Set GLOSS_PORT or pass --port <number>.`);
   }
   console.log(`Gloss: http://127.0.0.1:${port}`);
-  const child = spawn(
-    VENV_PYTHON,
-    ["-m", "uvicorn", "app.main:app", "--host", host, "--port", String(port)],
-    { cwd: BACKEND, env: process.env, stdio: "inherit", shell: false, detached: !IS_WINDOWS },
-  );
+  const child = spawnBackend(host, port);
+  supervise([{ child, name: "backend" }]);
+}
+
+// The file path Windows passes to a registered handler, ignoring the option
+// flags that may sit either side of it.
+function openTargetArgument() {
+  const rest = process.argv.slice(3);
+  for (let index = 0; index < rest.length; index += 1) {
+    const arg = rest[index];
+    if (arg === "--port" || arg === "--host" || arg === "--python") {
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--")) continue;
+    return arg;
+  }
+  return undefined;
+}
+
+async function openFile() {
+  const target = openTargetArgument();
+  if (!target) fail("usage: gloss-local open <file.pdf>");
+  const file = path.resolve(target);
+  if (!fs.existsSync(file) || path.extname(file).toLowerCase() !== ".pdf") {
+    fail(`not a PDF file: ${file}`);
+  }
+  ensurePrepared();
+  const host = selectedHost();
+  const port = selectedPort();
+  const url = `http://127.0.0.1:${port}`;
+
+  // Hand the file to a Gloss that is already serving. A second one could only
+  // fight it for the port, and the user would see nothing happen.
+  if ((await healthOk(url)) && (await handoffReady(url))) {
+    await postJson(`${url}/api/open-file`, { path: file });
+    openBrowser(`http://${browserHost(host)}:${port}`);
+    console.log(`Gloss: opened ${path.basename(file)} in the running instance`);
+    return;
+  }
+
+  if (!(await portIsFree(host, port))) {
+    fail(`port ${port} on ${host} is already in use. Set GLOSS_PORT or pass --port <number>.`);
+  }
+  const child = spawnBackend(host, port);
+  if (!(await waitForHealth(url))) {
+    terminate(child);
+    fail("the local Gloss server did not become ready in time.");
+  }
+  await postJson(`${url}/api/open-file`, { path: file });
+  openBrowser(`http://${browserHost(host)}:${port}`);
+  console.log(`Gloss: http://127.0.0.1:${port}`);
   supervise([{ child, name: "backend" }]);
 }
 
@@ -287,6 +424,7 @@ function printHelp() {
 Usage:
   gloss-local              install on first run, then start Gloss
   gloss-local start        start the local web app
+  gloss-local open <file>  open a PDF in Gloss (starting it when needed)
   gloss-local setup        install or refresh local dependencies
   gloss-local doctor       inspect this installation
   gloss-local dev          run backend and frontend development servers
@@ -337,9 +475,19 @@ function supervise(entries) {
   }
 }
 
-function dev() {
+async function dev() {
   assertPrepared(false);
   const port = selectedPort();
+  // uvicorn would die on a taken port and take the frontend down with it, so
+  // say what to do instead of letting the pair vanish silently.
+  if (!(await portIsFree("127.0.0.1", port))) {
+    fail(
+      `port ${port} is already in use — a Gloss backend is already running.\n` +
+        `Stop it first (Ctrl+C in its terminal), or start on another port: GLOSS_PORT=8011 npm run dev`,
+    );
+  }
+  console.log(`Gloss dev: frontend http://127.0.0.1:5173  backend http://127.0.0.1:${port}`);
+  console.log("Hot reload is on: edit and save, no rebuild needed. Ctrl+C to stop.");
   const backend = spawn(
     VENV_PYTHON,
     ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", String(port), "--reload"],
@@ -373,7 +521,8 @@ if (command === "--help" || command === "-h" || command === "help") printHelp();
 else if (!command || command === "--host" || command === "--port") await start();
 else if (command === "setup") setup();
 else if (command === "start") await start();
-else if (command === "dev") dev();
+else if (command === "open") await openFile();
+else if (command === "dev") await dev();
 else if (command === "doctor") doctor();
 else if (command === "test") test();
 else fail("unknown command. Run gloss-local --help for usage.");

@@ -18,6 +18,7 @@ from typing import AsyncIterator
 from ..config import ensure_codex_sandbox, load_config
 from ..platform_support import (
     resolve_cli_command,
+    run_cli_coroutine,
     subprocess_group_options,
     terminate_process_tree,
 )
@@ -95,6 +96,9 @@ class LocalCodexProvider(Provider):
 
     async def test_connection(self) -> str:
         """Check subscription login without launching a full Codex inference."""
+        return await run_cli_coroutine(self._login_status())
+
+    async def _login_status(self) -> str:
         cmd = resolve_cli_command("codex") + ["login", "status"]
         proc = None
         try:
@@ -147,6 +151,25 @@ class LocalCodexProvider(Provider):
         return text, usage, resolved_session_id
 
     async def _run_completion(
+        self,
+        system: str,
+        messages: list[Message],
+        model: str | None,
+        *,
+        persist_session: bool,
+        session_id: str | None = None,
+    ) -> tuple[str, dict, str | None]:
+        return await run_cli_coroutine(
+            self._execute_completion(
+                system,
+                messages,
+                model,
+                persist_session=persist_session,
+                session_id=session_id,
+            )
+        )
+
+    async def _execute_completion(
         self,
         system: str,
         messages: list[Message],

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, type AiUsageSummary } from "../api/client";
+import { api, type AiUsageSummary, type FileAssociationStatus } from "../api/client";
 import { useStore } from "../store";
 import { ThemePicker } from "./ThemePicker";
 import { PdfModeToggle } from "./PdfModeToggle";
@@ -35,6 +35,8 @@ export function SettingsPanel() {
   const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [usage, setUsage] = useState<AiUsageSummary | null>(null);
   const [usageLoading, setUsageLoading] = useState(false);
+  const [assoc, setAssoc] = useState<FileAssociationStatus | null>(null);
+  const [assocBusy, setAssocBusy] = useState(false);
 
   const T = {
     en: {
@@ -56,6 +58,8 @@ export function SettingsPanel() {
       setCfg(s.config);
       setProviders(s.available_providers);
     });
+    // null keeps the whole row hidden where the OS has no such thing to offer.
+    api.getFileAssociation().then(setAssoc).catch(() => setAssoc(null));
     void refreshUsage();
   }, []);
 
@@ -117,6 +121,22 @@ export function SettingsPanel() {
       setTestResult({ ok: false, text: `✗ ${String(e.message || e)}` });
     } finally {
       setTesting(false);
+    }
+  }
+
+  async function setAssociation(register: boolean) {
+    setAssocBusy(true);
+    try {
+      setAssoc(await api.setFileAssociation(register));
+      notify(
+        register
+          ? (uiLang === "zh" ? "已注册：右键 PDF → 打开方式 里可以选择 Gloss" : "Registered — Gloss now appears under Open with")
+          : (uiLang === "zh" ? "已取消 PDF 关联" : "PDF association removed"),
+      );
+    } catch (e: any) {
+      notify(String(e?.message || e));
+    } finally {
+      setAssocBusy(false);
     }
   }
 
@@ -191,6 +211,30 @@ export function SettingsPanel() {
         })}
         onBlur={() => save(false)}
       />
+
+      {assoc?.supported && (
+        <>
+          <label>{uiLang === "zh" ? "Windows 文件关联（PDF 打开方式 / 设为默认应用）" : "Windows file association (Open with / default app for PDF)"}</label>
+          <div className="test-conn">
+            <button className="small" onClick={() => void setAssociation(true)} disabled={assocBusy || assoc.registered}>
+              {uiLang === "zh" ? "注册为打开方式" : "Register"}
+            </button>
+            <button className="small" onClick={() => void setAssociation(false)} disabled={assocBusy || !assoc.registered}>
+              {uiLang === "zh" ? "取消注册" : "Unregister"}
+            </button>
+            <span className={"test-result " + (assoc.registered ? "ok" : "")}>
+              {assoc.registered
+                ? (uiLang === "zh" ? "已注册" : "Registered")
+                : (uiLang === "zh" ? "未注册" : "Not registered")}
+            </span>
+          </div>
+          <p className="usage-note">
+            {uiLang === "zh"
+              ? "注册后，右键 PDF → 打开方式 里会出现 Gloss；再到「设置 → 应用 → 默认应用」把 .pdf 的默认应用选成 Gloss，双击即可直接用 Gloss 打开。"
+              : "Once registered, Gloss shows up under Open with for PDFs. To make it the default, open Settings → Apps → Default apps and choose Gloss for .pdf."}
+          </p>
+        </>
+      )}
 
       <label>Active AI provider</label>
       <select value={cfg.provider} onChange={(e) => setCfg({ ...cfg, provider: e.target.value })}>

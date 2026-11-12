@@ -29,9 +29,11 @@ def annot_facts(data: bytes) -> list[dict]:
             for annot in page.annots():
                 facts.append({
                     "kind": annot.type[1],
+                    "page": pno,
                     "title": annot.info.get("title"),
                     "content": annot.info.get("content"),
                     "stroke": list(annot.colors.get("stroke") or []),
+                    "rect": [round(float(v), 1) for v in annot.rect],
                 })
         return facts
     finally:

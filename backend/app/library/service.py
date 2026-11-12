@@ -6,6 +6,7 @@ import re
 import tempfile
 
 from . import store
+from ..pdf import bilingual
 from ..pdf import ingest as pdf_ingest
 from ..pdf import structure
 from ..platform_support import run_in_process_with_timeout
@@ -18,6 +19,20 @@ class ImportCancelledError(RuntimeError):
 def _raise_if_cancelled(cancel_event) -> None:
     if cancel_event is not None and cancel_event.is_set():
         raise ImportCancelledError("paper import was cancelled")
+
+
+def _pdf_kind(meta: dict, path) -> str | None:
+    """What the imported file is — bilingual, or nothing worth recording.
+
+    The name PaperFlow gave the file is the sure answer, and Gloss is about to
+    rename the copy to original.pdf, so this is the one moment it is still
+    available. Otherwise the pages themselves are looked at.
+    """
+    named = bilingual.kind(meta.get("file_name") or "")
+    if named != "original":
+        return named
+    detected = bilingual.detect_kind(path)
+    return detected if detected != "original" else None
 
 
 def _parse_pdf_path(pdf_path: str) -> dict:
@@ -77,6 +92,7 @@ def create_from_pdf_bytes(
     try:
         _raise_if_cancelled(cancel_event)
         store.pdf_path(pid).write_bytes(pdf_bytes)
+        store.set_paper_pdf_kind(pid, _pdf_kind(meta, store.pdf_path(pid)))
         _raise_if_cancelled(cancel_event)
 
         if parsed is None:

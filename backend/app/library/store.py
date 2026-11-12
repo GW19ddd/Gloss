@@ -165,6 +165,18 @@ def init_db() -> None:
         if "source_pdf" not in paper_columns:
             # absolute path of the original PDF (e.g. the Zotero attachment)
             con.execute("ALTER TABLE papers ADD COLUMN source_pdf TEXT")
+        if "zotero_item_key" not in paper_columns:
+            # Zotero parent item (the paper) this Gloss paper is linked to
+            con.execute("ALTER TABLE papers ADD COLUMN zotero_item_key TEXT")
+        if "zotero_attachment_key" not in paper_columns:
+            # Zotero PDF attachment annotations/notes are written under
+            con.execute("ALTER TABLE papers ADD COLUMN zotero_attachment_key TEXT")
+        if "zotero_note_key" not in paper_columns:
+            # the Zotero child note last exported, so exports update in place
+            con.execute("ALTER TABLE papers ADD COLUMN zotero_note_key TEXT")
+        if "pdf_kind" not in paper_columns:
+            # what Gloss's own copy of the paper is: 'dual' for a bilingual file
+            con.execute("ALTER TABLE papers ADD COLUMN pdf_kind TEXT")
         drawing_columns = {
             row["name"] for row in con.execute("PRAGMA table_info(drawings)").fetchall()
         }
@@ -369,8 +381,8 @@ def create_paper(meta: dict[str, Any]) -> str:
     pid = meta.get("id") or _uid()
     with _conn() as con:
         con.execute(
-            """INSERT INTO papers (id,title,authors,year,abstract,source,arxiv_id,doi,n_pages,tags,source_pdf,added_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            """INSERT INTO papers (id,title,authors,year,abstract,source,arxiv_id,doi,n_pages,tags,source_pdf,pdf_kind,added_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 pid,
                 meta.get("title", ""),
@@ -383,6 +395,7 @@ def create_paper(meta: dict[str, Any]) -> str:
                 int(meta.get("n_pages", 0) or 0),
                 json.dumps(meta.get("tags", []), ensure_ascii=False),
                 meta.get("source_pdf") or None,
+                meta.get("pdf_kind") or None,
                 _now(),
             ),
         )
@@ -559,6 +572,74 @@ def set_paper_source_pdf(paper_id: str, path: str | None) -> None:
             "UPDATE papers SET source_pdf=? WHERE id=?",
             (str(path) if path else None, paper_id),
         )
+
+
+def paper_pdf_kind(paper_id: str) -> str | None:
+    """What Gloss's own copy of the paper is: 'dual', or None when undecided.
+
+    None means "not looked at yet" rather than "known to be a plain PDF" — import
+    records what it could tell, and everything else is settled the first time
+    someone needs the answer (see ``annot_writer.paper_pdf_kind``).
+    """
+    with _conn() as con:
+        row = con.execute(
+            "SELECT pdf_kind FROM papers WHERE id=?", (paper_id,)
+        ).fetchone()
+    raw = (row["pdf_kind"] if row else None) or ""
+    return raw.strip() or None
+
+
+def set_paper_pdf_kind(paper_id: str, kind: str | None) -> None:
+    """Record what Gloss's copy of the paper is ('dual', or 'original')."""
+    with _conn() as con:
+        con.execute(
+            "UPDATE papers SET pdf_kind=? WHERE id=?",
+            (kind or None, paper_id),
+        )
+
+
+def zotero_link(paper_id: str) -> dict:
+    """Zotero keys stored for a paper: parent item, PDF attachment, note."""
+    with _conn() as con:
+        row = con.execute(
+            "SELECT zotero_item_key, zotero_attachment_key, zotero_note_key "
+            "FROM papers WHERE id=?",
+            (paper_id,),
+        ).fetchone()
+    if not row:
+        return {"item_key": None, "attachment_key": None, "note_key": None}
+    return {
+        "item_key": row["zotero_item_key"],
+        "attachment_key": row["zotero_attachment_key"],
+        "note_key": row["zotero_note_key"],
+    }
+
+
+def set_zotero_link(
+    paper_id: str,
+    *,
+    item_key: str | None = None,
+    attachment_key: str | None = None,
+    note_key: str | None = None,
+) -> None:
+    """Remember which Zotero item/attachment/note a paper is bound to.
+
+    ``None`` values are left untouched, so callers can update one key at a time.
+    """
+    sets, vals = [], []
+    for col, val in (
+        ("zotero_item_key", item_key),
+        ("zotero_attachment_key", attachment_key),
+        ("zotero_note_key", note_key),
+    ):
+        if val is not None:
+            sets.append(f"{col}=?")
+            vals.append(val)
+    if not sets:
+        return
+    vals.append(paper_id)
+    with _conn() as con:
+        con.execute(f"UPDATE papers SET {','.join(sets)} WHERE id=?", vals)
 
 
 def clear_highlight_xrefs(paper_id: str) -> None:

@@ -27,7 +27,8 @@ function ProviderMark({ provider }: { provider: string }) {
 function statusClass(status?: string) {
   if (status === "connected") return "connected";
   if (status === "checking") return "checking";
-  return "error";
+  if (status === "error") return "error";
+  return "unknown";
 }
 
 export function ProviderSwitcher() {
@@ -56,11 +57,20 @@ export function ProviderSwitcher() {
     };
   }, []);
 
-  const statusTitle = currentStatus?.status === "connected"
-    ? (uiLang === "zh" ? "连接正常" : "Connected")
-    : currentStatus?.status === "checking"
-      ? (uiLang === "zh" ? "正在检测连接" : "Checking connection")
-      : (currentStatus?.error || (uiLang === "zh" ? "连接不可用" : "Not connected"));
+  const statusTitle =
+    currentStatus?.status === "connected"
+      ? uiLang === "zh"
+        ? "连接正常"
+        : "Connected"
+      : currentStatus?.status === "checking"
+        ? uiLang === "zh"
+          ? "正在检测连接"
+          : "Checking connection"
+        : currentStatus?.status === "error"
+          ? currentStatus.error || (uiLang === "zh" ? "连接不可用" : "Not connected")
+          : uiLang === "zh"
+            ? "尚未检测（设置里点「测试」）"
+            : "Not checked yet (press Test in Settings)";
 
   return (
     <div className="provider-switcher" ref={host}>

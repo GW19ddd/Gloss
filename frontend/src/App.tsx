@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { api } from "./api/client";
 import { useStore } from "./store";
 import { Library } from "./components/Library";
 import { Outline } from "./components/Outline";
@@ -8,6 +9,16 @@ import { ProviderSwitcher } from "./components/ProviderSwitcher";
 import { ExitConfirmDialog } from "./components/ExitConfirmDialog";
 import { PdfViewer } from "./pdf/PdfViewer";
 import { startImportJobPolling } from "./importQueue.mjs";
+
+const readNumber = (key: string, fallback: number) => {
+  const value = Number(localStorage.getItem(key));
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+};
+
+/** Below this the PDF would be squeezed to nothing, so the outline folds away. */
+const NARROW_WINDOW = 1180;
+/** Never let the panels eat the page: the PDF keeps at least this much width. */
+const MIN_PDF_WIDTH = 360;
 
 export default function App() {
   const view = useStore((s) => s.view);
@@ -19,23 +30,34 @@ export default function App() {
   const checkProvider = useStore((s) => s.checkProvider);
   const refreshProviderStatuses = useStore((s) => s.refreshProviderStatuses);
   const loadImportJobs = useStore((s) => s.loadImportJobs);
+  const openPaper = useStore((s) => s.openPaper);
   const toast = useStore((s) => s.toast);
   const notify = useStore((s) => s.notify);
   const uiLang = useStore((s) => s.uiLang);
 
-  const clampWidth = (w: number) => Math.min(900, Math.max(320, w));
+  const clampWidth = useCallback(
+    (w: number) => Math.min(900, Math.max(320, w)),
+    [],
+  );
   const [sideWidth, setSideWidth] = useState(() =>
-    clampWidth(Number(localStorage.getItem("gloss.sideWidth")) || 440)
+    clampWidth(readNumber("gloss.sideWidth", 440))
   );
   const dragging = useRef(false);
 
-  const clampOutline = (w: number) => Math.min(420, Math.max(120, w));
+  const clampOutline = useCallback(
+    (w: number) => Math.min(340, Math.max(150, w)),
+    [],
+  );
   const [outlineWidth, setOutlineWidth] = useState(() =>
-    clampOutline(Number(localStorage.getItem("gloss.outlineWidth")) || 190)
+    clampOutline(readNumber("gloss.outlineWidth", 176))
   );
   const [outlineCollapsed, setOutlineCollapsed] = useState(
     () => localStorage.getItem("gloss.outlineCollapsed") === "1"
   );
+  const [focusMode, setFocusMode] = useState(
+    () => localStorage.getItem("gloss.focusMode") === "1"
+  );
+  const [winWidth, setWinWidth] = useState(() => window.innerWidth);
 
   useEffect(() => {
     // apply the saved theme + PDF night mode on load (controls live in Settings)
@@ -51,10 +73,38 @@ export default function App() {
 
   useEffect(() => startImportJobPolling(loadImportJobs, 1000), [loadImportJobs]);
 
+  // A double-clicked PDF arrives as a paper the backend is holding for us; the
+  // endpoint clears it, so a reload lands in the library as usual.
+  useEffect(() => {
+    void (async () => {
+      try {
+        const { paper_id } = await api.consumePendingOpen();
+        if (paper_id) await openPaper(paper_id);
+      } catch {
+        /* an older backend, or one that was never handed a file */
+      }
+    })();
+  }, [openPaper]);
+
   useEffect(() => {
     const timer = window.setInterval(() => void refreshProviderStatuses(), 5000);
     return () => window.clearInterval(timer);
   }, [refreshProviderStatuses]);
+
+  useEffect(() => {
+    const onResize = () => setWinWidth(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  // Fold the outline away on a narrow window — once per crossing only, so a
+  // reader who re-opens it on a small screen keeps it.
+  const wasNarrow = useRef(winWidth < NARROW_WINDOW);
+  useEffect(() => {
+    const narrow = winWidth < NARROW_WINDOW;
+    if (narrow && !wasNarrow.current) setOutlineCollapsed(true);
+    wasNarrow.current = narrow;
+  }, [winWidth]);
 
   useEffect(() => {
     localStorage.setItem("gloss.sideWidth", String(sideWidth));
@@ -65,12 +115,27 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("gloss.outlineCollapsed", outlineCollapsed ? "1" : "0");
   }, [outlineCollapsed]);
+  useEffect(() => {
+    localStorage.setItem("gloss.focusMode", focusMode ? "1" : "0");
+  }, [focusMode]);
 
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => notify(null), 2600);
     return () => clearTimeout(t);
   }, [toast]);
+
+  // Panels are fixed-width, so a narrow window has to give the PDF its share
+  // back instead of pushing it off the right edge.
+  const railWidth = outlineCollapsed ? 28 : outlineWidth;
+  const maxSide = Math.max(
+    300,
+    winWidth - railWidth - (outlineCollapsed ? 0 : 6) - MIN_PDF_WIDTH - 6,
+  );
+  const effectiveSideWidth = useMemo(
+    () => Math.min(sideWidth, maxSide),
+    [sideWidth, maxSide],
+  );
 
   const startDrag = () => {
     dragging.current = true;
@@ -101,6 +166,12 @@ export default function App() {
     window.addEventListener("mouseup", onUp);
   };
 
+  const readerClass = [
+    "reader",
+    focusMode ? "focus" : "",
+    winWidth < 1400 ? "compact" : "",
+  ].filter(Boolean).join(" ");
+
   return (
     <div className="app">
       <header className="topbar">
@@ -121,8 +192,8 @@ export default function App() {
       {view === "library" ? (
         <Library />
       ) : (
-        <div className="reader">
-          {outlineCollapsed ? (
+        <div className={readerClass}>
+          {!focusMode && (outlineCollapsed ? (
             <button className="outline-expand" title={uiLang === "zh" ? "显示大纲" : "Show outline"} onClick={() => setOutlineCollapsed(false)}>
               »
             </button>
@@ -133,12 +204,16 @@ export default function App() {
               </div>
               <div className="divider" onMouseDown={startOutlineDrag} />
             </>
+          ))}
+          <PdfViewer focusMode={focusMode} onToggleFocus={() => setFocusMode((on) => !on)} />
+          {!focusMode && (
+            <>
+              <div className="divider" onMouseDown={startDrag} />
+              <div className="side-host" style={{ width: effectiveSideWidth, flex: "0 0 auto", display: "flex" }}>
+                <SidePanel />
+              </div>
+            </>
           )}
-          <PdfViewer />
-          <div className="divider" onMouseDown={startDrag} />
-          <div className="side-host" style={{ width: sideWidth, flex: "0 0 auto", display: "flex" }}>
-            <SidePanel />
-          </div>
         </div>
       )}
 

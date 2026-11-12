@@ -14,15 +14,26 @@ export function SelectionPopover({
   const addHl = useStore((s) => s.addUserHighlight);
   const selection = useStore((s) => s.selection);
   const uiLang = useStore((s) => s.uiLang);
+  const noteSelection = useStore((s) => s.noteSelection);
+  const pageLabels = useStore((s) => s.pages?.page_labels);
   const [noteOpen, setNoteOpen] = useState(false);
   const [note, setNote] = useState("");
   const [color, setColor] = useState(COLORS[0]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const T = {
-    en: { explain: "💡 Explain", translate: "🌐 Translate", ask: "💬 Add to chat", highlight: "Highlight", copy: "⧉ Copy", note: "📝 Add note", save: "Save note", saving: "Saving…", saveError: "Could not save the highlight.", placeholder: "Optional note…" },
-    zh: { explain: "💡 解释", translate: "🌐 翻译", ask: "💬 加入会话", highlight: "高亮", copy: "⧉ 复制", note: "📝 添加笔记", save: "保存笔记", saving: "保存中…", saveError: "高亮保存失败，请重试。", placeholder: "补充你的笔记…" },
+    en: { explain: "💡 Explain", translate: "🌐 Translate", ask: "💬 Add to chat", highlight: "Highlight", copy: "⧉ Copy", note: "📝 Add note", save: "Save note", saving: "Saving…", saveError: "Could not save the highlight.", placeholder: "Optional note…", scope: "Scope", chars: "chars", write: "✎ Write in my note" },
+    zh: { explain: "💡 解释", translate: "🌐 翻译", ask: "💬 加入会话", highlight: "高亮", copy: "⧉ 复制", note: "📝 添加笔记", save: "保存笔记", saving: "保存中…", saveError: "高亮保存失败，请重试。", placeholder: "补充你的笔记…", scope: "作用范围", chars: "字", write: "✎ 写入我的笔记" },
   }[uiLang];
+
+  // Say exactly what the buttons below will act on: the reader should never
+  // have to guess whether the selection still is what they think it is.
+  const scopeText = selection
+    ? [
+      `p${(pageLabels?.[selection.page] || String(selection.page + 1))}`,
+      `${selection.text.split(/\s+/).length} ${T.chars}`,
+    ].join(" · ")
+    : "";
 
   async function saveHighlight(nextColor: string, nextNote = "") {
     if (saving) return;
@@ -45,7 +56,16 @@ export function SelectionPopover({
         if (!(event.target instanceof HTMLTextAreaElement)) event.preventDefault();
       }}
     >
+      {selection && (
+        <div className="sel-scope" title={selection.text}>
+          <span className="sel-scope-meta">
+            {T.scope}: {scopeText}
+          </span>
+          <span className="sel-scope-text">{selection.text.slice(0, 90)}{selection.text.length > 90 ? "…" : ""}</span>
+        </div>
+      )}
       <div className="sel-popover-main">
+        <button onClick={() => { noteSelection(); onClose(); }}>{T.write}</button>
         <button onClick={() => { run("explain"); onClose(); }}>{T.explain}</button>
         <button onClick={() => { run("translate"); onClose(); }}>{T.translate}</button>
         <button onClick={() => { run("ask"); onClose(); }}>{T.ask}</button>

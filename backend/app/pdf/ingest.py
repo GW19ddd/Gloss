@@ -89,6 +89,59 @@ def ingest_pdf(pdf_path: str | Path) -> dict[str, Any]:
     }
 
 
+def page_labels(pdf_path: str | Path) -> list[str | None]:
+    """The printed page number of each PDF page, where the PDF declares one.
+
+    Journals paginate a paper 1..n while the PDF also holds front matter, so the
+    number printed on the page and the position of the page in the file differ.
+    ``None`` means the PDF declares no label for that page.
+    """
+    out: list[str | None] = []
+    doc = fitz.open(str(pdf_path))
+    try:
+        for pno in range(doc.page_count):
+            try:
+                label = doc.load_page(pno).get_label()
+            except Exception:
+                label = None
+            out.append(label or None)
+    finally:
+        doc.close()
+    return out
+
+
+#: Fallback probe lengths, tried in order when the whole quote is not found.
+#: A shorter head is cut on a word boundary, so it still matches real text
+#: rather than ending mid-word where no PDF ever breaks a line.
+PROBE_LENGTHS = (80, 40)
+
+
+def probes(needle: str) -> list[str]:
+    """The strings to search a page for, whole quote first.
+
+    A quote is searched whole, because a sentence in a paper wraps over two or
+    three rendered lines and only the whole of it spans every line it is on:
+    searching a fixed-length head finds the first line and stops there, which
+    leaves the highlight covering half a sentence. The shorter heads are a
+    fallback for a quote the PDF does not hold as written — hyphenated across a
+    line break, or not quite verbatim — where part of it is better than none.
+    """
+    text = " ".join((needle or "").split())
+    if not text:
+        return []
+    out = [text]
+    for length in PROBE_LENGTHS:
+        if len(text) <= length:
+            continue
+        head = text[:length]
+        cut = head.rfind(" ")
+        if cut > length // 2:
+            head = head[:cut]
+        if head and head not in out:
+            out.append(head)
+    return out
+
+
 def search_page_rects(pdf_path: str | Path, page_index: int, needle: str) -> list[list[float]]:
     """Return bounding rects for ``needle`` on a page (best-effort, for highlights)."""
     needle = " ".join(needle.split())
@@ -99,31 +152,42 @@ def search_page_rects(pdf_path: str | Path, page_index: int, needle: str) -> lis
         if page_index < 0 or page_index >= doc.page_count:
             return []
         page = doc.load_page(page_index)
-        rects = page.search_for(needle, quads=False)
-        if not rects and len(needle) > 60:
-            rects = page.search_for(needle[:60], quads=False)
-        return [[round(r.x0, 2), round(r.y0, 2), round(r.x1, 2), round(r.y1, 2)] for r in rects]
+        for probe in probes(needle):
+            rects = page.search_for(probe, quads=False)
+            if rects:
+                return [[round(r.x0, 2), round(r.y0, 2), round(r.x1, 2), round(r.y1, 2)] for r in rects]
+        return []
     finally:
         doc.close()
 
 
 def locate_text(pdf_path: str | Path, needle: str, max_pages: int | None = None) -> dict | None:
-    """Find the first page containing ``needle`` and return {page, rects}."""
+    """Find the first page containing ``needle`` and return {page, rects}.
+
+    The rectangles cover every rendered line the needle is on, so a quote
+    wrapping over three lines highlights all three and not just its first.
+
+    ``exact`` says whether the whole needle was found. When it is false only a
+    shortened head matched, so the location is a guess at where the quote is
+    rather than the quote itself — worth writing down, but not worth presenting
+    as a located quote.
+    """
     snippet = " ".join(needle.split())
     if not snippet:
         return None
-    probe = snippet if len(snippet) <= 80 else snippet[:80]
     doc = fitz.open(str(pdf_path))
     try:
         n = doc.page_count if max_pages is None else min(max_pages, doc.page_count)
         for pno in range(n):
             page = doc.load_page(pno)
-            rects = page.search_for(probe, quads=False)
-            if rects:
-                return {
-                    "page": pno,
-                    "rects": [[round(r.x0, 2), round(r.y0, 2), round(r.x1, 2), round(r.y1, 2)] for r in rects],
-                }
+            for index, probe in enumerate(probes(snippet)):
+                rects = page.search_for(probe, quads=False)
+                if rects:
+                    return {
+                        "page": pno,
+                        "rects": [[round(r.x0, 2), round(r.y0, 2), round(r.x1, 2), round(r.y1, 2)] for r in rects],
+                        "exact": index == 0,
+                    }
     finally:
         doc.close()
     return None

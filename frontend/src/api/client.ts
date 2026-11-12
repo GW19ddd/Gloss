@@ -71,6 +71,16 @@ export interface PagesResponse {
   pages: PageInfo[];
   sections: Section[];
   toc: any[];
+  /** The number printed on each page, where the PDF declares one. */
+  page_labels?: (string | null)[];
+  /** true when the outline was AI-cleaned (POST fix_outline) */
+  outline_fixed?: boolean;
+  /** true when the raw outline looks broken (math fragments, duplicates) */
+  outline_noisy?: boolean;
+  /** "zh" | "en" — the language the returned outline is written in */
+  outline_language?: string;
+  /** true when the PDF's own bookmarks hold a Gloss outline */
+  outline_written?: boolean;
 }
 export interface Highlight {
   id: string;
@@ -99,6 +109,25 @@ export interface PdfCandidate {
   path: string;
   name: string;
   score: number;
+}
+/**
+ * A markup annotation read back out of the PDF file itself — note evidence and
+ * marks left by Zotero or another reader, none of which are in Gloss's database.
+ */
+export interface PdfAnnotation {
+  /** native object number; identifies it for deletion */
+  xref: number;
+  page: number;
+  rects: [number, number, number, number][];
+  color: string | null;
+  content: string;
+  title: string;
+  author: string;
+  type: string;
+  /** which file it was read from */
+  source: "copy" | "original";
+  /** 'gloss' (mirrors a database highlight) | 'gloss_evidence' | 'external' */
+  kind: string;
 }
 export interface PdfTargetLink {
   target: PdfTarget;
@@ -129,10 +158,99 @@ export interface NoteEvidence {
   why: string;
   page: number | null;
   rects: [number, number, number, number][];
+  /** False when only a shortened head of the quote matched: a hint, not a location. */
+  exact?: boolean;
 }
 export interface DeepNote {
   markdown: string;
   evidence: NoteEvidence[];
+}
+/** An older version of the note, kept when a regeneration replaced it. */
+export interface NoteVersion {
+  at: string;
+  scope: string;
+  source: "ai" | "edited";
+  markdown: string;
+  evidence: NoteEvidence[];
+}
+/** Draft + the reader's own edit + the versions a regeneration archived. */
+export interface NoteState {
+  markdown: string;
+  evidence: NoteEvidence[];
+  edited: string | null;
+  history: NoteVersion[];
+  language: string;
+}
+
+/** Zotero's local API (Settings → Advanced must allow other applications). */
+/** Whether Windows offers Gloss for PDF files, and the command it would run. */
+export interface FileAssociationStatus {
+  supported: boolean;
+  registered: boolean;
+  command: string | null;
+}
+/** A paper handed over by the OS (double-clicked PDF), returned only once. */
+export interface PendingOpen {
+  paper_id: string | null;
+}
+export interface ZoteroStatus {
+  running: boolean;
+  library_id: number | null;
+  library_name: string | null;
+  /** Zotero 10+ answers write requests; older ones are read-only (501). */
+  writable: boolean;
+  /** Whether Gloss already holds a local API key for those writes. */
+  authorized: boolean;
+  hint: string | null;
+}
+export interface ZoteroAttachment {
+  key: string;
+  title: string;
+  path: string;
+  linkMode: string | null;
+  filename: string;
+}
+export interface ZoteroCandidate {
+  key: string;
+  title: string;
+  year: string;
+  authors: string[];
+  doi: string;
+  itemType: string | null;
+  reason: string;
+  attachments: ZoteroAttachment[];
+}
+export interface ZoteroLink {
+  item_key: string | null;
+  attachment_key: string | null;
+  note_key: string | null;
+}
+export interface ZoteroAnnotationResult {
+  evidence_id: string | null;
+  key: string | null;
+  reused: boolean;
+  error?: string | null;
+}
+export interface ZoteroExportResult {
+  /** Note HTML with every [E1] marker turned into a zotero:// link. */
+  html: string;
+  item_key: string;
+  attachment_key: string;
+  select_url: string;
+  /** Key of the note Gloss created or overwrote, or null when Zotero refused it. */
+  note_key: string | null;
+  note_url: string | null;
+  /** True when this export overwrote the note a previous export made. */
+  note_updated?: boolean;
+  /** True when the note is in Zotero already, so there is nothing to paste. */
+  written: boolean;
+  annotations: ZoteroAnnotationResult[];
+  /** How many evidence items got a link that jumps straight to the passage. */
+  matched: number;
+  total: number;
+  /** Zotero 10+ can take write requests, so Gloss could create annotations. */
+  writable: boolean;
+  authorized: boolean;
 }
 export interface ChatAttachment {
   id: string;
@@ -382,6 +500,33 @@ export interface ScholarResult {
   citations?: number;
 }
 
+/** A sentence of a reflowed paragraph, with the PDF rectangles it occupies. */
+export interface ReadingSegment {
+  text: string;
+  sent_id: string;
+  rects: [number, number, number, number][];
+}
+
+export interface ReadingBlock {
+  type: "p" | "heading" | "figure" | "caption";
+  page: number;
+  bbox: [number, number, number, number];
+  image: string | null;
+  text: string;
+  segments: ReadingSegment[];
+}
+
+export interface ReadingDoc {
+  blocks: ReadingBlock[];
+  n_pages: number;
+  /** PDF pages holding prose — a bilingual PDF's translated pages are skipped. */
+  source_pages: number[];
+  columns: 1 | 2;
+  has_text: boolean;
+  /** sentence id -> translated text; sentences with no entry are untranslated. */
+  translations: Record<string, string>;
+}
+
 async function j<T>(r: Response): Promise<T> {
   if (!r.ok) {
     const body = await r.text();
@@ -429,7 +574,39 @@ export const api = {
   cancelImportJob: (id: string) =>
     fetch(`/api/papers/import-jobs/${id}`, { method: "DELETE" }).then((r) => j<{ ok: boolean }>(r)),
   pdfUrl: (id: string) => `/api/papers/${id}/pdf`,
-  getPages: (id: string) => fetch(`/api/papers/${id}/pages`).then((r) => j<PagesResponse>(r)),
+  getReading: (id: string, language?: string) =>
+    fetch(`/api/papers/${id}/reading${language ? `?lang=${encodeURIComponent(language)}` : ""}`)
+      .then((r) => j<ReadingDoc>(r)),
+  readingFigureUrl: (id: string, name: string) =>
+    `/api/papers/${id}/reading/figure/${encodeURIComponent(name)}`,
+  getPages: (id: string, language?: string) =>
+    fetch(`/api/papers/${id}/pages${language ? `?language=${encodeURIComponent(language)}` : ""}`)
+      .then((r) => j<PagesResponse>(r)),
+
+  fixOutline: (id: string, opts: { refresh?: boolean; language?: string } = {}) =>
+    fetch(`/api/papers/${id}/fix_outline`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(opts),
+    }).then((r) => j<{ sections: Section[] }>(r)),
+
+  resetOutline: (id: string, language?: string) =>
+    fetch(
+      `/api/papers/${id}/reset_outline${language ? `?language=${encodeURIComponent(language)}` : ""}`,
+      { method: "POST" },
+    ).then((r) => j<{ sections: Section[] }>(r)),
+
+  // The outline follows the answer language, so the language is always sent.
+  writeOutlineToPdf: (id: string, language?: string) =>
+    fetch(`/api/papers/${id}/outline/to-pdf`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ language }),
+    }).then((r) => j<{ written: number; language: string }>(r)),
+
+  restorePdfOutline: (id: string) =>
+    fetch(`/api/papers/${id}/outline/restore-pdf`, { method: "POST" })
+      .then((r) => j<{ restored: number }>(r)),
 
   summarize: (id: string, opts: { refresh?: boolean; language?: string } = {}) =>
     fetch(`/api/papers/${id}/summarize`, {
@@ -501,6 +678,98 @@ export const api = {
       body: JSON.stringify({ refresh }),
     }).then((r) => j<{ markdown: string }>(r)),
 
+  /** Draft + edit + history. Never starts an AI call. */
+  getNoteState: (id: string, language?: string) =>
+    fetch(`/api/papers/${id}/notes/state${language ? `?language=${encodeURIComponent(language)}` : ""}`)
+      .then((r) => j<NoteState>(r)),
+  saveNoteEdit: (id: string, markdown: string, language?: string) =>
+    fetch(`/api/papers/${id}/notes/edit`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ markdown, language }),
+    }).then((r) => j<NoteState>(r)),
+  revertNoteEdit: (id: string, language?: string) =>
+    fetch(`/api/papers/${id}/notes/revert?${language ? `language=${encodeURIComponent(language)}` : ""}`, {
+      method: "POST",
+    }).then((r) => j<NoteState>(r)),
+  restoreNoteVersion: (id: string, index: number, language?: string) =>
+    fetch(`/api/papers/${id}/notes/restore`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ index, language }),
+    }).then((r) => j<NoteState>(r)),
+
+  evidenceToPdf: (
+    id: string,
+    evidence: NoteEvidence[],
+    target: "auto" | "original" | "dual" | "mono" | "both" | "copy" = "auto",
+    side: "original" | "translated" | "both" = "original",
+  ) =>
+    fetch(`/api/papers/${id}/evidence/pdf`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ evidence, target, side }),
+    }).then((r) => j<{ written: number; skipped: number; embedded: number }>(r)),
+
+  /** Which translations of this paper are available to write evidence into. */
+  evidencePdfStatus: (id: string) =>
+    fetch(`/api/papers/${id}/evidence/pdf`).then(
+      (r) =>
+        j<{
+          embedded: number;
+          dual: { available: boolean; path: string | null; sidecar: boolean };
+          mono: { available: boolean; path: string | null };
+        }>(r),
+    ),
+
+  zoteroStatus: () => fetch("/api/zotero/status").then((r) => j<ZoteroStatus>(r)),
+
+  zoteroSearch: (q: string, limit = 10) =>
+    fetch(`/api/zotero/search?q=${encodeURIComponent(q)}&limit=${limit}`).then(
+      (r) => j<{ candidates: ZoteroCandidate[] }>(r),
+    ),
+
+  zoteroLink: (id: string) =>
+    fetch(`/api/papers/${id}/zotero/link`).then(
+      (r) => j<{ link: ZoteroLink; status: ZoteroStatus }>(r),
+    ),
+
+  zoteroMatch: (id: string) =>
+    fetch(`/api/papers/${id}/zotero/match`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    }).then((r) => j<{ candidates: ZoteroCandidate[]; link: ZoteroLink }>(r)),
+
+  zoteroBind: (id: string, itemKey: string, attachmentKey?: string) =>
+    fetch(`/api/papers/${id}/zotero/link`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ item_key: itemKey, attachment_key: attachmentKey }),
+    }).then((r) => j<{ link: ZoteroLink }>(r)),
+
+  zoteroAuthorize: () =>
+    fetch("/api/zotero/authorize", { method: "POST" }).then(
+      (r) => j<{ authorized: boolean; remember: boolean; status: ZoteroStatus }>(r),
+    ),
+
+  zoteroExport: (
+    id: string,
+    body: {
+      html: string;
+      evidence: NoteEvidence[];
+      item_key?: string;
+      attachment_key?: string;
+      /** Set to overwrite the note an earlier export made instead of adding one. */
+      note_key?: string;
+    },
+  ) =>
+    fetch(`/api/papers/${id}/zotero/export`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((r) => j<ZoteroExportResult>(r)),
+
   listHighlights: (id: string) =>
     fetch(`/api/papers/${id}/highlights`).then((r) => j<{ highlights: Highlight[] }>(r)),
   addHighlight: (id: string, h: Partial<Highlight>) =>
@@ -511,6 +780,14 @@ export const api = {
     }).then((r) => j<Highlight>(r)),
   deleteHighlight: (hid: string) =>
     fetch(`/api/highlights/${hid}`, { method: "DELETE" }).then((r) => j<any>(r)),
+  listPdfAnnotations: (id: string) =>
+    fetch(`/api/papers/${id}/pdf-annotations`).then(
+      (r) => j<{ annotations: PdfAnnotation[] }>(r),
+    ),
+  deletePdfAnnotation: (id: string, xref: number, source: string) =>
+    fetch(`/api/papers/${id}/pdf-annotations/${xref}?source=${source}`, {
+      method: "DELETE",
+    }).then((r) => j<{ removed: number }>(r)),
   getPdfTarget: (id: string) =>
     fetch(`/api/papers/${id}/pdf-target`).then((r) => j<PdfTarget>(r)),
   linkPdfTarget: (id: string, path: string) =>
@@ -672,6 +949,18 @@ export const api = {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(patch),
     }).then((r) => j<any>(r)),
+
+  getFileAssociation: () =>
+    fetch("/api/file-association").then((r) => j<FileAssociationStatus>(r)),
+  setFileAssociation: (register: boolean) =>
+    fetch("/api/file-association", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ register }),
+    }).then((r) => j<FileAssociationStatus>(r)),
+
+  /** The paper the OS asked for; the backend clears it as soon as it is read. */
+  consumePendingOpen: () => fetch("/api/pending-open").then((r) => j<PendingOpen>(r)),
 };
 
 // POST-based SSE: reads a text/event-stream, parses `data: {json}` frames.

@@ -215,6 +215,22 @@ def reset_status(name: str) -> None:
     _STATUSES.pop(name, None)
 
 
+def provider_names() -> list[str]:
+    return list(_PROVIDERS)
+
+
+async def probe_all_providers() -> None:
+    """Check every provider once so UI status dots are truthful without a click.
+
+    Local CLI providers run their cheap login-status command; API providers
+    send one tiny completion. Failures are recorded as statuses, never raised.
+    """
+    await asyncio.gather(
+        *(test_connection(name) for name in provider_names()),
+        return_exceptions=True,
+    )
+
+
 async def test_connection(name: str | None = None) -> dict:
     provider_name = name or load_config().get("provider", "local_claude")
     provider = get_provider(provider_name)

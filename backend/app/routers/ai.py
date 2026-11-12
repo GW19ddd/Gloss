@@ -17,6 +17,7 @@ from ..features import explain as explain_feat
 from ..features import highlight as highlight_feat
 from ..features import mindmap as mindmap_feat
 from ..features import notes as notes_feat
+from ..features import outline as outline_feat
 from ..features import summarize as summarize_feat
 from ..features import translate as translate_feat
 from ..library import store
@@ -123,8 +124,48 @@ async def mindmap(paper_id: str, body: SummarizeBody):
     return {"tree": tree}
 
 
+@router.post("/papers/{paper_id}/fix_outline")
+async def fix_outline(paper_id: str, body: SummarizeBody):
+    """AI-clean the extracted outline (dedupe, drop noise, fix hierarchy)."""
+    if not store.get_paper(paper_id):
+        raise HTTPException(404, "paper not found")
+    try:
+        with registry.usage_context("fix_outline", paper_id=paper_id):
+            sections = await outline_feat.fix_outline(
+                paper_id, language=body.language, refresh=body.refresh,
+                provider=body.provider, model=body.model,
+            )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"sections": sections}
+
+
+@router.post("/papers/{paper_id}/reset_outline")
+async def reset_outline(paper_id: str, language: str | None = None):
+    """Undo the AI cleanup for one language; back to the raw extracted outline."""
+    if not store.get_paper(paper_id):
+        raise HTTPException(404, "paper not found")
+    return {"sections": outline_feat.reset_outline(paper_id, language)}
+
+
+class NotesBody(Override):
+    refresh: bool = False
+    scope: Literal["full", "section"] | None = None
+    section: str | None = Field(default=None, max_length=200)
+
+
+class NotesEditBody(BaseModel):
+    language: str | None = None
+    markdown: str = Field(max_length=400_000)
+
+
+class NotesRestoreBody(BaseModel):
+    language: str | None = None
+    index: int = 0
+
+
 @router.post("/papers/{paper_id}/notes")
-async def notes(paper_id: str, body: SummarizeBody):
+async def notes(paper_id: str, body: NotesBody):
     if not store.get_paper(paper_id):
         raise HTTPException(404, "paper not found")
     try:
@@ -132,10 +173,51 @@ async def notes(paper_id: str, body: SummarizeBody):
             note = await notes_feat.build_notes(
                 paper_id, language=body.language, refresh=body.refresh,
                 provider=body.provider, model=body.model,
+                scope=body.scope, section=body.section,
             )
     except ValueError as e:
         raise HTTPException(400, str(e))
+    except RuntimeError as e:
+        # A provider that refused, timed out or is not signed in. Nothing was
+        # written: the reader's note is still theirs, and the error reaches them
+        # as a message instead of an empty panel that looks like a result.
+        raise HTTPException(502, str(e))
     return note if isinstance(note, dict) else {"markdown": note, "evidence": []}
+
+
+@router.get("/papers/{paper_id}/notes/state")
+async def notes_state(paper_id: str, language: str | None = None):
+    """Draft + reader edit + version history, without starting any AI call."""
+    if not store.get_paper(paper_id):
+        raise HTTPException(404, "paper not found")
+    return notes_feat.notes_state(paper_id, language)
+
+
+@router.put("/papers/{paper_id}/notes/edit")
+async def notes_edit(paper_id: str, body: NotesEditBody):
+    """Save the reader's own version. The AI draft stays untouched and restorable."""
+    if not store.get_paper(paper_id):
+        raise HTTPException(404, "paper not found")
+    return notes_feat.save_edit(paper_id, body.markdown, body.language)
+
+
+@router.post("/papers/{paper_id}/notes/revert")
+async def notes_revert(paper_id: str, language: str | None = None):
+    """Drop the reader's edit and show the AI draft again."""
+    if not store.get_paper(paper_id):
+        raise HTTPException(404, "paper not found")
+    return notes_feat.revert_edit(paper_id, language)
+
+
+@router.post("/papers/{paper_id}/notes/restore")
+async def notes_restore(paper_id: str, body: NotesRestoreBody):
+    """Bring a version out of the history back as the current text."""
+    if not store.get_paper(paper_id):
+        raise HTTPException(404, "paper not found")
+    try:
+        return notes_feat.restore_version(paper_id, body.index, body.language)
+    except IndexError as e:
+        raise HTTPException(404, str(e))
 
 
 @router.post("/explain")

@@ -11,7 +11,7 @@ import mimetypes
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -25,6 +25,7 @@ from .routers import (
     ai,
     annotations,
     citations,
+    file_association,
     papers,
     plugins,
     scholar,
@@ -32,6 +33,7 @@ from .routers import (
     skills,
     tasks,
     usage,
+    zotero,
 )
 
 # Windows often does not register the .mjs extension, so StaticFiles serves
@@ -50,9 +52,13 @@ async def lifespan(app: FastAPI):
         save_timeout=papers.IMPORT_SAVE_TIMEOUT,
     )
     app.state.ai_tasks = AITaskManager()
+    # Probe every provider once in the background so the UI status dots are
+    # truthful right after startup, without the user pressing Test.
+    status_probe = asyncio.create_task(registry.probe_all_providers())
     try:
         yield
     finally:
+        status_probe.cancel()
         await app.state.ai_tasks.shutdown()
         try:
             await asyncio.wait_for(app.state.import_jobs.shutdown(), timeout=20)
@@ -73,6 +79,19 @@ app.add_middleware(
 )
 
 
+@app.exception_handler(Exception)
+async def unhandled_error_handler(request: Request, exc: Exception):
+    """Return the real error text to the browser instead of an empty 500.
+
+    Provider failures (bad model name, expired login, unreachable endpoint)
+    surface here as opaque exceptions; the frontend toast can only show the
+    HTTP status unless the body carries the actual message.
+    """
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+    detail = f"{type(exc).__name__}: {exc}"
+    return JSONResponse(status_code=500, content={"detail": detail[:400]})
+
+
 @app.get("/api/health")
 async def health():
     cfg = config.load_config()
@@ -89,11 +108,13 @@ app.include_router(ai.router)
 app.include_router(citations.router)
 app.include_router(scholar.router)
 app.include_router(annotations.router)
+app.include_router(file_association.router)
 app.include_router(plugins.router)
 app.include_router(skills.router)
 app.include_router(settings.router)
 app.include_router(usage.router)
 app.include_router(tasks.router)
+app.include_router(zotero.router)
 
 
 # ---------------------------------------------------------------------------

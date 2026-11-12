@@ -6,6 +6,8 @@ import { useStore } from "../store";
 export function PersonalNotesPanel() {
   const current = useStore((state) => state.current);
   const uiLang = useStore((state) => state.uiLang);
+  const notePrompt = useStore((state) => state.notePrompt);
+  const pageLabels = useStore((state) => state.pages?.page_labels);
   const T = uiLang === "zh"
     ? {
         placeholder: "记录你的想法、问题、公式推导和阅读结论…",
@@ -75,6 +77,25 @@ export function PersonalNotesPanel() {
         setSaveState("error");
       });
   }, [current?.id]);
+
+  // A passage handed over from a PDF selection: append it rather than making
+  // the reader retype what they just selected.
+  const promptId = useRef(0);
+  useEffect(() => {
+    if (!notePrompt || !loaded || notePrompt.id === promptId.current) return;
+    promptId.current = notePrompt.id;
+    const page = pageLabels?.[notePrompt.page] || String(notePrompt.page + 1);
+    const quote = notePrompt.text.replace(/\s+/g, " ").trim().slice(0, 400);
+    if (!quote) return;
+    setContent((prev) => {
+      const block = uiLang === "zh"
+        ? `\n\n> ${quote}\n> —— 第 ${page} 页\n\n`
+        : `\n\n> ${quote}\n> — p. ${page}\n\n`;
+      return prev ? `${prev.replace(/\s+$/, "")}\n${block}` : block.trimStart();
+    });
+    editRevision.current += 1;
+    setDirty(true);
+  }, [notePrompt, loaded, pageLabels, uiLang]);
 
   useEffect(() => {
     const paperId = current?.id;

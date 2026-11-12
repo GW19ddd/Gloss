@@ -16,7 +16,8 @@ from ..library.import_jobs import (
     ImportJobManager,
     ImportQueueFullError,
 )
-from ..pdf import annot_writer, ingest, original_finder, structure
+from ..features import outline as outline_feat
+from ..pdf import annot_writer, ingest, original_finder, reflow, structure
 
 router = APIRouter(prefix="/api/papers", tags=["papers"])
 
@@ -62,7 +63,15 @@ async def upload_paper(file: UploadFile = File(...)):
     data = await file.read()
     try:
         paper = await run_in_threadpool(
-            service.create_from_pdf_bytes, data, {"source": "upload", "title": ""}
+            service.create_from_pdf_bytes,
+            data,
+            {
+                "source": "upload",
+                "title": "",
+                # the name the file arrived under, before Gloss stores it as
+                # original.pdf: "…-dual.pdf" is a PaperFlow bilingual file
+                "file_name": file.filename or "",
+            },
         )
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -195,6 +204,19 @@ def _resolve_original(paper_id: str, raw: str) -> Path:
         raise HTTPException(400, "original PDF path must point to a .pdf file")
     if not os.access(path, os.W_OK):
         raise HTTPException(400, f"that file is read-only: {path}")
+    # os.access only checks the read-only flag on Windows — a PDF held open by
+    # Zotero or a reader passes it yet refuses every write. Probe a real write
+    # handle now (open "r+b" does not truncate) so the error says why, instead
+    # of failing later deep inside the annotation sync.
+    try:
+        with open(path, "r+b"):
+            pass
+    except OSError as e:
+        raise HTTPException(
+            400,
+            "that file is locked by another program (Zotero / a PDF reader?) — "
+            f"close it and retry / 文件正被其他程序占用，请关闭后重试: {e}",
+        )
     try:
         if path.resolve() == store.pdf_path(paper_id).resolve():
             raise HTTPException(
@@ -233,7 +255,18 @@ async def link_pdf_target(paper_id: str, body: PdfTargetBody):
     store.set_paper_source_pdf(paper_id, str(path))
     # xrefs are file-local: they refer to the copy we were writing before.
     store.clear_highlight_xrefs(paper_id)
-    result = await run_in_threadpool(annot_writer.sync_paper, paper_id)
+    try:
+        result = await run_in_threadpool(annot_writer.sync_paper, paper_id)
+    except Exception as e:
+        # Back out: half-linked (target switched, annotations not written) is
+        # worse than staying on the internal copy with a clear error.
+        store.clear_highlight_xrefs(paper_id)
+        store.set_paper_source_pdf(paper_id, None)
+        raise HTTPException(
+            500,
+            "could not write annotations into that file "
+            f"/ 写入该文件失败: {e}",
+        )
     return {"target": annot_writer.target_info(paper_id), "sync": result}
 
 
@@ -261,19 +294,68 @@ async def detect_pdf_target(paper_id: str):
 
 
 @router.get("/{paper_id}/pages")
-async def get_pages(paper_id: str):
+async def get_pages(paper_id: str, language: str | None = None):
     parsed = store.load_parsed(paper_id)
     if not parsed:
         raise HTTPException(404, "parsed data not found")
     # recompute sections from stored blocks so heuristic improvements apply to
     # already-ingested papers without re-parsing the PDF
     sections = structure.detect_sections(parsed)
+    # an AI-cleaned outline (if the user ran one) overrides the raw extraction;
+    # otherwise flag a messy outline so the client can offer/trigger a fix.
+    # It follows the answer language: Chinese and English are cached apart.
+    current = outline_feat.get_outline(paper_id, language, sections=sections)
+    sections = current["sections"]
+    outline_noisy = False if current["fixed"] else outline_feat.is_noisy(sections)
+    labels: list[str | None] = []
+    try:
+        labels = await run_in_threadpool(ingest.page_labels, store.pdf_path(paper_id))
+    except Exception:
+        # A page label is a nicety; a PDF we can't read for labels is still
+        # readable, so the UI falls back to the position in the file.
+        labels = []
     return {
         "n_pages": parsed["n_pages"],
         "pages": parsed["pages"],
         "sections": sections,
+        "outline_fixed": current["fixed"],
+        "outline_noisy": outline_noisy,
+        "outline_written": outline_feat.pdf_written(paper_id),
+        "outline_language": current["language"],
         "toc": parsed.get("toc", []),
+        "page_labels": labels,
     }
+
+
+class OutlinePdfBody(BaseModel):
+    language: str | None = None
+
+
+@router.post("/{paper_id}/outline/to-pdf")
+async def write_outline_to_pdf(paper_id: str, body: OutlinePdfBody):
+    """Make the outline currently shown the PDF's own bookmarks.
+
+    The bookmarks the file had are kept aside so ``restore-pdf`` can undo this.
+    """
+    if not store.get_paper(paper_id):
+        raise HTTPException(404, "paper not found")
+    try:
+        return await run_in_threadpool(
+            outline_feat.write_to_pdf, paper_id, language=body.language
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.post("/{paper_id}/outline/restore-pdf")
+async def restore_pdf_outline(paper_id: str):
+    """Undo a previous write: put the PDF's original bookmarks back."""
+    if not store.get_paper(paper_id):
+        raise HTTPException(404, "paper not found")
+    try:
+        return await run_in_threadpool(outline_feat.restore_pdf, paper_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 class LocateBody(BaseModel):
@@ -317,3 +399,26 @@ async def get_fulltext(paper_id: str):
     if not parsed:
         raise HTTPException(404, "parsed data not found")
     return {"full_text": parsed["full_text"]}
+
+
+@router.get("/{paper_id}/reading")
+async def get_reading(paper_id: str, lang: str | None = None, force: bool = False):
+    """The paper reflowed into a single reading column.
+
+    The layout analysis reads every line of the PDF and asks it to locate every
+    sentence, so it runs in a thread and is cached on disk afterwards (see
+    ``pdf.reflow``). ``lang`` asks for the translations to be attached too.
+    """
+    if not annot_writer.target_path(paper_id).exists():
+        raise HTTPException(404, "pdf not found")
+    doc = await run_in_threadpool(lambda: reflow.build_reading_doc(paper_id, force=force))
+    return reflow.attach_translations(doc, paper_id, lang)
+
+
+@router.get("/{paper_id}/reading/figure/{name}")
+async def get_reading_figure(paper_id: str, name: str):
+    """A figure cropped out of the PDF for the reading view."""
+    path = reflow.figure_file(paper_id, name)
+    if path is None:
+        raise HTTPException(404, "figure not found")
+    return FileResponse(str(path), media_type="image/png")

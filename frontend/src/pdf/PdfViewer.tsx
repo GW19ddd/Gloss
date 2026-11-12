@@ -1,8 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { pdfjsLib, TextLayer } from "./pdfSetup";
-import { api, type ChatAttachment, type DrawingTool } from "../api/client";
+import {
+  api,
+  type ChatAttachment,
+  type DrawingTool,
+  type PdfAnnotation,
+} from "../api/client";
 import { useStore } from "../store";
 import { SelectionPopover } from "../components/SelectionPopover";
+import { AnnotationMenu } from "../components/AnnotationMenu";
+import { ReadingMode } from "../components/ReadingMode";
 
 const DRAW_COLORS = ["#ef6b6b", "#ffd54f", "#7aa2f7", "#4fb8a0", "#ce93d8"];
 const BRUSHES: Record<DrawingTool, { widths: number[]; defaultWidth: number }> = {
@@ -39,6 +46,12 @@ interface LassoDraft {
 interface LassoCapture extends ChatAttachment {
   points: [number, number][];
 }
+
+/** What a right-clicked mark is, so the menu knows how to delete it. */
+type MenuTarget =
+  | { kind: "pdf"; xref: number; source: string; heading: string; text: string }
+  | { kind: "highlight"; id: string; heading: string; text: string };
+type MenuState = MenuTarget & { x: number; y: number };
 
 function pointInPolygon(point: [number, number], polygon: [number, number][]) {
   let inside = false;
@@ -85,13 +98,27 @@ async function renderTextLayer(page: any, viewport: any, layer: HTMLDivElement) 
   layer.appendChild(frag);
 }
 
-export function PdfViewer() {
+export function PdfViewer({
+  focusMode = false,
+  onToggleFocus,
+}: {
+  focusMode?: boolean;
+  onToggleFocus?: () => void;
+}) {
   const current = useStore((s) => s.current);
   const uiLang = useStore((s) => s.uiLang);
   const pages = useStore((s) => s.pages);
+  const gotoAnchor = useStore((s) => s.gotoAnchor);
+  const jumpBackTick = useStore((s) => s.jumpBackTick);
+  const requestJumpBack = useStore((s) => s.requestJumpBack);
+  const setCurrentPage = useStore((s) => s.setCurrentPage);
   const highlights = useStore((s) => s.highlights);
   const drawings = useStore((s) => s.drawings);
   const refreshDrawings = useStore((s) => s.refreshDrawings);
+  const pdfAnnotations = useStore((s) => s.pdfAnnotations);
+  const refreshPdfAnnotations = useStore((s) => s.refreshPdfAnnotations);
+  const refreshHighlights = useStore((s) => s.refreshHighlights);
+  const deletePdfAnnotation = useStore((s) => s.deletePdfAnnotation);
   const notify = useStore((s) => s.notify);
   const gotoPage = useStore((s) => s.gotoPage);
   const setGoto = useStore((s) => s.setGoto);
@@ -106,10 +133,13 @@ export function PdfViewer() {
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
   const docRef = useRef<any>(null);
   const [popover, setPopover] = useState<{ x: number; y: number } | null>(null);
+  const [reading, setReading] = useState(false);
   const [showHighlights, setShowHighlights] = useState(() => localStorage.getItem("gloss.layer.highlights") !== "0");
   const [showNotes, setShowNotes] = useState(() => localStorage.getItem("gloss.layer.notes") !== "0");
   const [showInk, setShowInk] = useState(() => localStorage.getItem("gloss.layer.ink") !== "0");
+  const [showPdfAnnots, setShowPdfAnnots] = useState(() => localStorage.getItem("gloss.layer.pdfannots") !== "0");
   const [dispOpen, setDispOpen] = useState(false);
+  const [menu, setMenu] = useState<MenuState | null>(null);
   const renderTasksRef = useRef<any[]>([]);
   const [drawTool, setDrawTool] = useState<DrawTool>("select");
   const [brushType, setBrushType] = useState<DrawingTool>(savedBrush);
@@ -120,6 +150,13 @@ export function PdfViewer() {
   const [lassoDraft, setLassoDraft] = useState<LassoDraft | null>(null);
   const lassoDraftRef = useRef<LassoDraft | null>(null);
   const [lassoCapture, setLassoCapture] = useState<LassoCapture | null>(null);
+  // A scanned PDF has no text layer, so there is nothing to select: say so
+  // rather than letting the reader wonder why the popover never appears.
+  const [hasTextLayer, setHasTextLayer] = useState<boolean | null>(null);
+  const [canJumpBack, setCanJumpBack] = useState(false);
+  const jumpOriginRef = useRef<number | null>(null);
+  const restoredForRef = useRef<string>("");
+  const scrollSaveTimer = useRef<number | null>(null);
 
   // Load the PDF document once per paper.
   useEffect(() => {
@@ -147,6 +184,7 @@ export function PdfViewer() {
     setLassoDraft(null);
     lassoDraftRef.current = null;
     setLassoCapture(null);
+    setMenu(null);
   }, [current?.id]);
 
   // Render all pages whenever the doc is ready or the scale changes.
@@ -211,19 +249,119 @@ export function PdfViewer() {
           /* render cancelled (scale changed) or failed — leave this page for the next pass */
         }
       }
+      if (cancelled) return;
+      const first = pageRefs.current[0];
+      setHasTextLayer(first ? first.querySelectorAll(".textLayer span").length > 0 : false);
     })();
     return () => {
       cancelled = true;
     };
   }, [rendered, scale, current?.id]);
 
-  // Scroll to a requested page/section.
+  // Scroll to a requested page/section. An anchor lands on the passage itself
+  // rather than on the top of its page.
   useEffect(() => {
     if (gotoPage == null) return;
+    const container = containerRef.current;
     const el = pageRefs.current[gotoPage];
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-    setGoto(null);
-  }, [gotoPage]);
+    if (el) {
+      // Remember where the reader was *before* an evidence jump moves them,
+      // once per chain of jumps, so "back" returns to the reading position.
+      if (container && gotoAnchor != null && jumpOriginRef.current == null) {
+        jumpOriginRef.current = container.scrollTop;
+        setCanJumpBack(true);
+      }
+      const offset = gotoAnchor != null ? Math.max(0, gotoAnchor * scale - 140) : 0;
+      if (container) container.scrollTo({ top: el.offsetTop + offset, behavior: "smooth" });
+      else el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    setGoto(null, null);
+  }, [gotoPage, gotoAnchor]);
+
+  // Come back from an evidence jump to where the reading was.
+  useEffect(() => {
+    if (!jumpBackTick) return;
+    const container = containerRef.current;
+    const origin = jumpOriginRef.current;
+    if (container && origin != null) container.scrollTo({ top: origin, behavior: "smooth" });
+    jumpOriginRef.current = null;
+    setCanJumpBack(false);
+  }, [jumpBackTick]);
+
+  // Reopening a paper comes back to the page the reader left off on. The page
+  // heights are only known once render pass 1 has sized them, so retry a
+  // little before giving up.
+  useEffect(() => {
+    if (!current || !rendered) return;
+    const paperId = current.id;
+    if (restoredForRef.current === paperId) return;
+    restoredForRef.current = paperId;
+    const raw = localStorage.getItem(`gloss.readpos:${paperId}`);
+    if (!raw) return;
+    let saved: { page?: number; frac?: number };
+    try {
+      saved = JSON.parse(raw);
+    } catch {
+      return;
+    }
+    let tries = 0;
+    const attempt = () => {
+      const container = containerRef.current;
+      const el = pageRefs.current[saved.page ?? 0];
+      tries += 1;
+      if (container && el && el.offsetHeight > 0) {
+        container.scrollTop = Math.max(
+          0,
+          el.offsetTop + (saved.frac || 0) * el.offsetHeight,
+        );
+        return;
+      }
+      if (tries < 20) window.setTimeout(attempt, 100);
+    };
+    const timer = window.setTimeout(attempt, 60);
+    return () => window.clearTimeout(timer);
+  }, [current?.id, rendered]);
+
+  // Remember the reading position: page + how far down it, so a change of zoom
+  // or panel width does not turn the restored position into the wrong page.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !current) return;
+    const paperId = current.id;
+    const onScroll = () => {
+      if (scrollSaveTimer.current != null) return;
+      scrollSaveTimer.current = window.setTimeout(() => {
+        scrollSaveTimer.current = null;
+        const c = containerRef.current;
+        if (!c) return;
+        const top = c.scrollTop;
+        let page = 0;
+        let frac = 0;
+        const refs = pageRefs.current;
+        for (let i = 0; i < refs.length; i += 1) {
+          const el = refs[i];
+          if (!el) continue;
+          if (el.offsetTop + el.offsetHeight > top + 8) {
+            page = i;
+            frac = el.offsetHeight ? (top - el.offsetTop) / el.offsetHeight : 0;
+            break;
+          }
+          page = i;
+          frac = 1;
+        }
+        localStorage.setItem(
+          `gloss.readpos:${paperId}`,
+          JSON.stringify({ page, frac }),
+        );
+        setCurrentPage(page);
+      }, 400);
+    };
+    container.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      container.removeEventListener("scroll", onScroll);
+      if (scrollSaveTimer.current != null) window.clearTimeout(scrollSaveTimer.current);
+    };
+  }, [current?.id, rendered]);
 
   // Auto-clear a transient flash highlight (from click-to-locate) after a moment.
   useEffect(() => {
@@ -471,7 +609,7 @@ export function PdfViewer() {
     points.map(([x, y]) => `${x * scale},${y * scale}`).join(" ");
 
   function setLayer(
-    key: "highlights" | "notes" | "ink",
+    key: "highlights" | "notes" | "ink" | "pdfannots",
     value: boolean,
     setter: (next: boolean) => void,
   ) {
@@ -479,8 +617,61 @@ export function PdfViewer() {
     localStorage.setItem(`gloss.layer.${key}`, value ? "1" : "0");
   }
 
+  function openMenu(event: React.MouseEvent, target: MenuTarget) {
+    event.preventDefault();
+    setMenu({ ...target, x: event.clientX, y: event.clientY });
+  }
+
+  /** "p3 · Note evidence" — what was right-clicked, and where it came from. */
+  function annotHeading(annotation: PdfAnnotation) {
+    const label =
+      annotation.kind === "gloss_evidence"
+        ? uiLang === "zh" ? "笔记证据" : "Note evidence"
+        : annotation.title
+          || (uiLang === "zh" ? "外部批注" : "External");
+    const suffix = annotation.source === "original"
+      ? (uiLang === "zh" ? "（原件）" : " (original)")
+      : "";
+    return `${uiLang === "zh" ? "第" : "p"}${annotation.page + 1}${uiLang === "zh" ? "页" : ""} · ${label}${suffix}`;
+  }
+
+  async function removePdfAnnotation(xref: number, source: string) {
+    try {
+      await deletePdfAnnotation(xref, source);
+    } catch (error) {
+      notify(String(error?.message || error));
+    }
+  }
+
+  async function removeHighlight(id: string) {
+    try {
+      await api.deleteHighlight(id);
+      await Promise.all([refreshHighlights(), refreshPdfAnnotations()]);
+    } catch (error) {
+      notify(String(error?.message || error));
+    }
+  }
+
   if (!current) return null;
   const n = current.n_pages;
+
+  /** Printed page number where the PDF declares one, else the file position. */
+  function pageNumberLabel(index: number) {
+    const printed = pages?.page_labels?.[index];
+    return printed || String(index + 1);
+  }
+
+  /** Both numbers, whenever they differ — a journal renumbers its pages. */
+  function pageNumberTitle(index: number) {
+    const printed = pages?.page_labels?.[index];
+    const position = String(index + 1);
+    if (!printed || printed === position) {
+      return uiLang === "zh" ? `PDF 第 ${position} 页` : `PDF page ${position}`;
+    }
+    return uiLang === "zh"
+      ? `印刷页码 ${printed} · PDF 第 ${position} 页`
+      : `Printed ${printed} · PDF page ${position}`;
+  }
 
   return (
     <div className="pdf-wrap">
@@ -488,11 +679,45 @@ export function PdfViewer() {
         <span className="paper-title" title={current.title}>
           {current.title || "Untitled"}
         </span>
+        <button
+          className={`focus-btn${reading ? " active" : ""}`}
+          title={uiLang === "zh" ? "阅读模式：把双栏论文重排为单栏" : "Reading mode: reflow the paper into one column"}
+          onClick={() => setReading((open) => !open)}
+        >
+          {uiLang === "zh" ? "阅读" : "Read"}
+        </button>
         <div className="zoom">
           <button onClick={() => setScale((s) => Math.max(0.6, s - 0.15))}>−</button>
           <span>{Math.round(scale * 100)}%</span>
           <button onClick={() => setScale((s) => Math.min(3, s + 0.15))}>+</button>
         </div>
+        {canJumpBack && (
+          <button
+            className="jump-back"
+            title={uiLang === "zh" ? "回到跳转前的位置" : "Back to where you were"}
+            onClick={requestJumpBack}
+          >
+            {uiLang === "zh" ? "↩ 返回" : "↩ Back"}
+          </button>
+        )}
+        {onToggleFocus && (
+          <button
+            className={`focus-btn${focusMode ? " active" : ""}`}
+            title={uiLang === "zh" ? (focusMode ? "退出专注阅读（显示大纲与面板）" : "专注阅读：只留 PDF") : (focusMode ? "Leave focus mode" : "Focus mode: PDF only")}
+            onClick={onToggleFocus}
+          >
+            {uiLang === "zh" ? (focusMode ? "退出专注" : "专注") : (focusMode ? "Exit focus" : "Focus")}
+          </button>
+        )}
+        {hasTextLayer === false && (
+          <span className="pdf-hint" title={
+            uiLang === "zh"
+              ? "这份 PDF 没有文字层（扫描件），无法选中文字。可用套索截图加入会话，或用整页翻译。"
+              : "This PDF has no text layer (a scan), so text cannot be selected. Use the lasso to capture a region, or translate a whole page."
+          }>
+            {uiLang === "zh" ? "无文字层 · 无法选区" : "No text layer"}
+          </span>
+        )}
         <div className="pdf-annotate">
           <button
             className={`pdf-disp-btn ${drawTool !== "select" ? "active" : ""}`}
@@ -590,6 +815,15 @@ export function PdfViewer() {
                 <span>{uiLang === "zh" ? "自由画笔" : "Freehand ink"}</span>
                 <small>{drawings.length}</small>
               </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={showPdfAnnots}
+                  onChange={(event) => setLayer("pdfannots", event.target.checked, setShowPdfAnnots)}
+                />
+                <span>{uiLang === "zh" ? "PDF 批注" : "PDF annotations"}</span>
+                <small>{pdfAnnotations.filter((a) => a.kind !== "gloss").length}</small>
+              </label>
             </div>
           )}
         </div>
@@ -612,8 +846,6 @@ export function PdfViewer() {
       )}
       <div className={`pdf-scroll draw-${drawTool}`} ref={containerRef} onMouseUp={onMouseUp}>
         {Array.from({ length: n }).map((_, i) => {
-          const pinfo = pages?.pages[i];
-          const scaleFromPdf = pinfo ? scale : scale;
           return (
             <div
               key={i}
@@ -633,13 +865,60 @@ export function PdfViewer() {
                           className="hl"
                           title={h.note || h.category}
                           style={{
-                            left: r[0] * scaleFromPdf,
-                            top: r[1] * scaleFromPdf,
-                            width: (r[2] - r[0]) * scaleFromPdf,
-                            height: (r[3] - r[1]) * scaleFromPdf,
+                            left: r[0] * scale,
+                            top: r[1] * scale,
+                            width: (r[2] - r[0]) * scale,
+                            height: (r[3] - r[1]) * scale,
                             background: h.color + (h.kind === "auto" ? "66" : "99"),
                           }}
                           onClick={() => useStore.getState().setTab("highlights")}
+                          onContextMenu={(event) =>
+                            openMenu(event, {
+                              kind: "highlight",
+                              id: h.id,
+                              heading: `${uiLang === "zh" ? "第" : "p"}${h.page + 1}${uiLang === "zh" ? "页" : ""} · ${uiLang === "zh" ? "我的标注" : "My highlight"}`,
+                              text: h.text || h.note || "",
+                            })
+                          }
+                        />
+                      )),
+                    )}
+                </div>
+              )}
+              {/* Marks that live in the file rather than the database: note
+                  evidence and whatever another reader left there. The ones
+                  tagged "Gloss" are skipped — the layer above already draws
+                  them from the database. */}
+              {showPdfAnnots && (
+                <div className="pdf-annot-layer">
+                  {pdfAnnotations
+                    .filter((a) => a.page === i && a.kind !== "gloss")
+                    .map((a) =>
+                      a.rects.map((r, ri) => (
+                        <div
+                          key={`${a.source}-${a.xref}-${ri}`}
+                          className={`pdf-annot t-${a.type || "Highlight"} k-${a.kind}`}
+                          style={{
+                            left: r[0] * scale,
+                            top: r[1] * scale,
+                            width: (r[2] - r[0]) * scale,
+                            height: (r[3] - r[1]) * scale,
+                            // Highlight fills; the rest draw a rule.
+                            background: a.type === "Highlight" || !a.type
+                              ? (a.color || "#ffd400")
+                              : undefined,
+                            borderColor: a.color || "#ffd400",
+                          }}
+                          title={a.content || a.title}
+                          onContextMenu={(event) =>
+                            openMenu(event, {
+                              kind: "pdf",
+                              xref: a.xref,
+                              source: a.source,
+                              heading: annotHeading(a),
+                              text: a.content,
+                            })
+                          }
                         />
                       )),
                     )}
@@ -728,13 +1007,27 @@ export function PdfViewer() {
                 </div>
               )}
               <div className="textLayer" />
-              <div className="page-num">{i + 1}</div>
+              <div className="page-num" title={pageNumberTitle(i)}>{pageNumberLabel(i)}</div>
             </div>
           );
         })}
       </div>
       {popover && (
         <SelectionPopover pos={popover} onClose={() => setPopover(null)} />
+      )}
+      {reading && <ReadingMode onClose={() => setReading(false)} />}
+      {menu && (
+        <AnnotationMenu
+          x={menu.x}
+          y={menu.y}
+          heading={menu.heading}
+          text={menu.text}
+          onClose={() => setMenu(null)}
+          onDelete={() => {
+            if (menu.kind === "pdf") void removePdfAnnotation(menu.xref, menu.source);
+            else void removeHighlight(menu.id);
+          }}
+        />
       )}
     </div>
   );
